@@ -5,6 +5,12 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
+    <script
+      src="https://code.jquery.com/jquery-3.6.2.js"
+      integrity="sha256-pkn2CUZmheSeyssYw3vMp1+xyub4m+e+QK4sQskvuo4="
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
   </head>
   <body style="background: black">
     <script type="importmap">
@@ -15,13 +21,62 @@
       }
     </script>
 
-    <script type="module">
+    <script type="module" defer>
       import { io } from 'socket.io-client';
+
+      const api = await axios
+        .post('http://localhost:3333/users/login', {
+          username: 'Gustavo1',
+          password: '123123',
+        })
+        .then(res =>
+          axios.create({
+            baseURL: 'http://localhost:3333',
+            headers: {
+              Authorization: `Baerer ${res.data.token}`,
+            },
+          }),
+        );
+
       const socket = io('ws://localhost:3333');
-      socket.on('testeIrado', payload => {
-        console.log('payload:', payload);
+
+      socket.emit('/user/myUserId', '1221e8fc-945d-4edc-8f4b-a2c0769d3b72'); // Usado para linkar o socket ao seu dono no backend. OBRIGATÓRIO APÓS O LOGIN!! (pegar do jwt)
+
+      socket.on('/rooms/new', payload => {
+        console.log('/rooms/new', payload);
+        document.getElementById('list').innerHTML += createRoomRow(payload);
       });
-      setTimeout(() => console.log('socket: ', socket), 5000);
+
+      function createGame(event) {
+        console.log('criando jogo');
+
+        api
+          .post('/rooms', { name: $('#create').val() })
+          .catch(err => alert(err));
+      }
+
+      const createRoomRow = room =>
+        `<p>${room.name} ${room.numberOfPlayers}/2 <button onclick="joinRoom('${room.id}')">entrar</button></p>`;
+
+      function joinRoom(roomId) {
+        alert('entrar no jogo roomId');
+      }
+
+      async function getGames() {
+        const response = await api.get('/rooms');
+        const html = response.data.map(createRoomRow).join('');
+        console.log('html: ', html);
+        document.getElementById('list').innerHTML = html;
+      }
+
+      window.onload = getGames();
+      window.createGame = createGame;
+      window.joinRoom = joinRoom;
     </script>
+
+    <button onclick="createGame(event)">Criar sala</button>
+    <input type="text" placeholder="Nome da sala" id="create" />
+
+    <div id="list" style="color: white"></div>
   </body>
 </html>
