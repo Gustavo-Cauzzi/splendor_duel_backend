@@ -24,21 +24,25 @@
     <script type="module" defer>
       import { io } from 'socket.io-client';
 
-      const api = await axios
+      const tokenJwt = await axios
         .post('http://localhost:3333/users/login', {
           username: 'Gustavo1',
           password: '123123',
         })
-        .then(res =>
-          axios.create({
-            baseURL: 'http://localhost:3333',
-            headers: {
-              Authorization: `Baerer ${res.data.token}`,
-            },
-          }),
-        );
+        .then(res => res.data.token);
 
-      const socket = io('ws://localhost:3333');
+      const api = axios.create({
+        baseURL: 'http://localhost:3333',
+        headers: {
+          Authorization: `Baerer ${tokenJwt}`,
+        },
+      });
+
+      const socket = io('ws://localhost:3333', {
+        auth: {
+          Authorization: `Baerer ${tokenJwt}`, // Pode mandar undefined caso o usuário não estiver logado, mas quando logar, é necessário reconectar o socket mandando o token
+        },
+      });
 
       socket.emit('/user/myUserId', '1221e8fc-945d-4edc-8f4b-a2c0769d3b72'); // Usado para linkar o socket ao seu dono no backend. OBRIGATÓRIO APÓS O LOGIN!! (pegar do jwt)
 
@@ -59,14 +63,14 @@
         `<p>${room.name} ${room.numberOfPlayers}/2 <button onclick="joinRoom('${room.id}')">entrar</button></p>`;
 
       function joinRoom(roomId) {
-        alert('entrar no jogo roomId');
+        alert(`entrar no jogo ${roomId}`);
       }
 
       async function getGames() {
         const response = await api.get('/rooms');
-        const html = response.data.map(createRoomRow).join('');
-        console.log('html: ', html);
-        document.getElementById('list').innerHTML = html;
+        document.getElementById('list').innerHTML = response.data
+          .map(createRoomRow)
+          .join('');
       }
 
       window.onload = getGames();

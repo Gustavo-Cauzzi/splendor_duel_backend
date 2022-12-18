@@ -51,5 +51,6 @@ export const login = async (username: string, password: string) => {
 };
 
 export const assignSocketToUser = (socket: Socket, userId: string) => {
+  console.log(`socket ${socket.id} conectado com o usuário ${userId}`);
   userSocket[userId] = socket;
 };

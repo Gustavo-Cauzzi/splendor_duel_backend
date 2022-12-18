@@ -27,14 +27,10 @@ UsersRouter.post('/login', async (req, res) => {
 });
 
 const UserIoRouter: ApplicationIoRouter = (socket, io) => {
-  socket.on('/user/myUserId', (currentUserId: string, callback) => {
-    if (!currentUserId) {
-      console.error('Não foi informado o id do usuário');
-      callback({ error: 'Não foi informado o id do usuário' });
-    }
-
-    assignSocketToUser(socket, currentUserId);
-  });
+  // Executado no connect
+  if (socket.data.global?.user?.id) {
+    assignSocketToUser(socket, socket.data.global.user.id);
+  }
 };
 
 export { UsersRouter, UserIoRouter };

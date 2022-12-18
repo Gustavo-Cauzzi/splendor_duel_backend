@@ -22,10 +22,7 @@ export default function ensureAuthenticated(
   const [, token] = authHeader.split(' ');
 
   try {
-    const { username, id, ...rest } = verify(
-      token,
-      authConfig.jwt.secret,
-    ) as User;
+    const { username, id } = verify(token, authConfig.jwt.secret) as User;
 
     if (!id) throw new AppError('ID do usuário logado não informado', 400);
 

@@ -1,3 +1,4 @@
+import { User } from '@modules/Users/User';
 import cors from 'cors';
 import express, { json, NextFunction, Request, Response } from 'express';
 import 'express-async-errors';
@@ -7,6 +8,7 @@ import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { allIoRoutes, allRoutes } from '../../../modules/router';
 import ensureAuthenticated from '../middlewares/ensureAuthenticated';
 import { errorMiddleware } from '../middlewares/errorMiddleware';
+import { injectCurrentUserIfLoggedIn } from '../middlewares/socket/injectCurrentUserIfLoggedIn';
 
 const PORT = 3333;
 
@@ -26,7 +28,7 @@ export type SocketConnection = Socket<
   DefaultEventsMap,
   DefaultEventsMap,
   DefaultEventsMap,
-  any
+  { global: { user?: User } } & Record<string, unknown>
 >;
 
 app.use(json());
@@ -34,6 +36,8 @@ app.use(cors());
 app.use(ensureAuthenticated);
 Object.entries(allRoutes).forEach(([route, router]) => app.use(route, router));
 app.use(errorMiddleware);
+
+io.use(injectCurrentUserIfLoggedIn);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'up' }).status(200);
