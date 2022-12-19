@@ -6,11 +6,11 @@ export default class Room {
   name = '';
   numberOfPlayers = 0;
   game = createRoomGame();
-  connectedPlayersSocket: string[] = [];
+  connectedPlayersIds: string[] = [];
 
   constructor(name: string, creatingUserId: string) {
     this.name = name;
     this.numberOfPlayers = 1;
-    this.connectedPlayersSocket.push(creatingUserId);
+    this.connectedPlayersIds.push(creatingUserId);
   }
 }

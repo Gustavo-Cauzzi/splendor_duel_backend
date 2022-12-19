@@ -9,7 +9,7 @@ import { Socket } from 'socket.io';
 import authConfig from '@config/auth';
 
 type GuaranteedExistence<T> = T extends undefined | null ? never : T;
-export const userSocket: Record<GuaranteedExistence<User['id']>, Socket> = {};
+export const usersSockets: Record<GuaranteedExistence<User['id']>, Socket> = {};
 
 const usersRef = ref(database, 'users');
 
@@ -52,5 +52,7 @@ export const login = async (username: string, password: string) => {
 
 export const assignSocketToUser = (socket: Socket, userId: string) => {
   console.log(`socket ${socket.id} conectado com o usuário ${userId}`);
-  userSocket[userId] = socket;
+  const existentSocket = usersSockets[userId];
+  if (existentSocket) existentSocket.disconnect();
+  usersSockets[userId] = socket;
 };

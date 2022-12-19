@@ -16,5 +16,31 @@ export const createRoom = (name: string, creatingUserId: string) => {
 };
 
 export const getAllOpenRooms = () => {
-  return rooms.filter(room => room.numberOfPlayers === 1);
+  return rooms.filter(room => !room.game.started);
+};
+
+export const joinRoom = (roomId: string, userId: string) => {
+  const room = rooms.find(room => room.id === roomId);
+
+  if (!room) {
+    throw new AppError('Não foi possível encontrar a respectiva sala', 400);
+  }
+
+  if (room.numberOfPlayers === 2) {
+    throw new AppError('Sala cheia', 401);
+  }
+
+  if (
+    room.connectedPlayersIds.some(connectedUserId => connectedUserId === userId)
+  ) {
+    throw new AppError(
+      'Alguém já conectado a uma sala não entrar na mesma sala',
+      401,
+    );
+  }
+
+  room.connectedPlayersIds.push(userId);
+  room.numberOfPlayers++;
+
+  return room;
 };

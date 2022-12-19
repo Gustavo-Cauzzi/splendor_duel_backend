@@ -6,7 +6,7 @@ import {
   assignSocketToUser,
   createUser,
   login,
-  userSocket,
+  usersSockets,
 } from './users.service';
 const UsersRouter = express.Router();
 
@@ -24,6 +24,10 @@ UsersRouter.post('/login', async (req, res) => {
   const token = await login(username, password);
 
   return res.status(200).json({ token });
+});
+
+UsersRouter.get('/debug/sockets', async (req, res) => {
+  return res.status(200).json(Object.keys(usersSockets));
 });
 
 const UserIoRouter: ApplicationIoRouter = (socket, io) => {

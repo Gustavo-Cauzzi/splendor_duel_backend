@@ -24,46 +24,85 @@
     <script type="module" defer>
       import { io } from 'socket.io-client';
 
-      const tokenJwt = await axios
-        .post('http://localhost:3333/users/login', {
-          username: 'Gustavo1',
-          password: '123123',
-        })
-        .then(res => res.data.token);
-
       const api = axios.create({
         baseURL: 'http://localhost:3333',
-        headers: {
-          Authorization: `Baerer ${tokenJwt}`,
+        headers: {},
+      });
+
+      api.interceptors.response.use(
+        resp => resp,
+        error => {
+          if (error.response?.status >= 400) {
+            alert(error.response.data.message);
+          }
         },
-      });
+      );
 
-      const socket = io('ws://localhost:3333', {
-        auth: {
-          Authorization: `Baerer ${tokenJwt}`, // Pode mandar undefined caso o usuário não estiver logado, mas quando logar, é necessário reconectar o socket mandando o token
-        },
-      });
+      let socket;
 
-      socket.emit('/user/myUserId', '1221e8fc-945d-4edc-8f4b-a2c0769d3b72'); // Usado para linkar o socket ao seu dono no backend. OBRIGATÓRIO APÓS O LOGIN!! (pegar do jwt)
+      function updateSocketEvents() {
+        socket.on('/rooms/new', payload => {
+          console.log('/rooms/new', payload);
+          document.getElementById('list').innerHTML += createRoomRow(payload);
+        });
 
-      socket.on('/rooms/new', payload => {
-        console.log('/rooms/new', payload);
-        document.getElementById('list').innerHTML += createRoomRow(payload);
-      });
+        socket.on('/rooms/update', room => {
+          console.log('/rooms/update: ', room);
+          updateRoom(room);
+        });
 
-      function createGame(event) {
-        console.log('criando jogo');
+        socket.on('connect', () => {
+          console.log('Socket novo conectado');
+        });
 
-        api
-          .post('/rooms', { name: $('#create').val() })
-          .catch(err => alert(err));
+        socket.on('disconnect', () => {
+          alert('Socket desconectado');
+          location.reload();
+        });
       }
 
-      const createRoomRow = room =>
-        `<p>${room.name} ${room.numberOfPlayers}/2 <button onclick="joinRoom('${room.id}')">entrar</button></p>`;
+      function updateRoom(room) {
+        const roomEl = document.querySelector(`div[data-roomId="${room.id}"]`);
+        if (!roomEl) {
+          alert(`Sala de id ${room.id} não encontrada`);
+          return;
+        }
 
-      function joinRoom(roomId) {
-        alert(`entrar no jogo ${roomId}`);
+        //prettier-ignore
+        roomEl.innerHTML = `
+          ${room.name} ${room.numberOfPlayers}/2
+          <button ${room.numberOfPlayers === 2 ? 'disabled' : ''} onclick="joinRoom('${room.id}')">
+            entrar
+          </button>
+        `
+      }
+
+      async function createRoom(event) {
+        console.log('criando sala');
+
+        const response = await api
+          .post('/rooms', { name: $('#create').val() })
+          .catch(err => alert(err));
+
+        console.log('Sala criada', response.data);
+
+        document.getElementById('list').innerHTML += createRoomRow(
+          response.data,
+        );
+      }
+
+      //prettier-ignore
+      const createRoomRow = room =>
+        `<div data-roomId="${room.id}">
+          ${room.name} ${room.numberOfPlayers}/2
+          <button ${room.numberOfPlayers === 2 ? 'disabled' : ''} onclick="joinRoom('${room.id}')">
+            entrar
+          </button>
+        </div>`;
+
+      async function joinRoom(roomId) {
+        const response = await api.patch('/rooms/join', { roomId });
+        updateRoom(response.data);
       }
 
       async function getGames() {
@@ -73,14 +112,53 @@
           .join('');
       }
 
-      window.onload = getGames();
-      window.createGame = createGame;
+      async function logInto(event, username) {
+        const token = await axios
+          .post('http://localhost:3333/users/login', {
+            username: username,
+            password: '123123',
+          })
+          .then(res => res.data.token);
+
+        api.defaults.headers = { Authorization: `Baerer ${token}` };
+        socket = io('ws://localhost:3333', {
+          auth: {
+            Authorization: `Baerer ${token}`,
+          },
+        });
+
+        console.log('socket: ', socket);
+
+        updateSocketEvents();
+        getGames();
+
+        document.getElementById('content').style.display = 'block';
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('currentUsername').innerHTML = username;
+      }
+
+      window.createRoom = createRoom;
       window.joinRoom = joinRoom;
+      window.logInto = logInto;
     </script>
 
-    <button onclick="createGame(event)">Criar sala</button>
-    <input type="text" placeholder="Nome da sala" id="create" />
+    <div id="login">
+      <button onclick="logInto(event, 'Gustavo')">Logar Gustavo</button>
+      <button onclick="logInto(event, 'Gustavo1')">Logar Gustavo1</button>
+    </div>
 
-    <div id="list" style="color: white"></div>
+    <div id="content" style="display: none">
+      <span
+        style="display: block; color: white; margin-bottom: 10px"
+        id="currentUsername"
+      ></span>
+      <button onclick="createRoom(event)">Criar sala</button>
+      <input type="text" placeholder="Nome da sala" id="create" />
+
+      <div
+        id="list"
+        style="color: white; display: flex; flex-direction: column; gap: 15px"
+      ></div>
+    </div>
   </body>
 </html>
