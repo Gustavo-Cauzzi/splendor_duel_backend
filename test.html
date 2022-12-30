@@ -11,6 +11,31 @@
       crossorigin="anonymous"
     ></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
+    <style>
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6,
+      p,
+      span,
+      div {
+        color: white;
+      }
+
+      .game__content {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        width: 100%;
+      }
+
+      .flex-para-baixo {
+        /* P r e g u i ç a */
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
   </head>
   <body style="background: black">
     <script type="importmap">
@@ -40,7 +65,7 @@
 
       let socket;
 
-      function updateSocketEvents() {
+      function setSocketEvents() {
         socket.on('/rooms/new', payload => {
           console.log('/rooms/new', payload);
           document.getElementById('list').innerHTML += createRoomRow(payload);
@@ -59,6 +84,70 @@
           alert('Socket desconectado');
           location.reload();
         });
+
+        socket.on('/room/started', room => {
+          console.log(`/room/started\n`, room);
+          roomStarted(room);
+        });
+      }
+
+      function startRoom(roomId) {
+        api.get(`/rooms/start/${roomId}`); // irá disparar o socket quando começado
+      }
+
+      function roomStarted(room) {
+        document.getElementById('roomList').innerHTML = '';
+        document.getElementById('currentGame').innerHTML = `
+          <h1>Jogo</h1>
+          <p>Id: ${room.id}</p>
+          <p>Nome: ${room.name}</p>
+
+          <div class="flex-para-baixo">
+            <h2>Board: </h2>
+            <div class="flex-para-baixo" style="gap: 15px;">
+              ${room.game.board
+                .map(
+                  row =>
+                    `<div>${row
+                      .map(
+                        cell =>
+                          `<button style="width: 55px;">${
+                            cell ?? 'Vazio'
+                          }</button>`,
+                      )
+                      .join('')}</div>`,
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <div class="flex-para-baixo">
+            <h2>Store:</h2>
+            <div class="flex-para-baixo" style="gap:20px">
+              ${Object.entries(room.game.store)
+                .map(
+                  ([level, cards]) =>
+                    `<div style="display:grid;grid-template-columns: 50px 1fr;align-items:center">
+                  <span>${level}</span>
+                  <div style="display:flex; width: 100%; justify-content: center; gap: 5px;">
+                    ${cards.length === 0 ? 'Sem cartas ;-;' : ''}
+                    ${cards
+                      .map(
+                        card =>
+                          `<div style="padding: 1rem;">${JSON.stringify(
+                            card,
+                            null,
+                            2,
+                          )}</div>`,
+                      )
+                      .join('')}
+                  </div>
+                </div>`,
+                )
+                .join('')}
+            </div>
+          </div>
+          `;
       }
 
       function updateRoom(room) {
@@ -73,6 +162,9 @@
           ${room.name} ${room.numberOfPlayers}/2
           <button ${room.numberOfPlayers === 2 ? 'disabled' : ''} onclick="joinRoom('${room.id}')">
             entrar
+          </button>
+          <button onclick="startRoom('${room.id}')">
+            Começar
           </button>
         `
       }
@@ -96,7 +188,10 @@
         `<div data-roomId="${room.id}">
           ${room.name} ${room.numberOfPlayers}/2
           <button ${room.numberOfPlayers === 2 ? 'disabled' : ''} onclick="joinRoom('${room.id}')">
-            entrar
+            Entrar
+          </button>
+          <button onclick="startRoom('${room.id}')">
+            Começar
           </button>
         </div>`;
 
@@ -115,7 +210,7 @@
       async function logInto(event, username) {
         const token = await axios
           .post('http://localhost:3333/users/login', {
-            username: username,
+            username,
             password: '123123',
           })
           .then(res => res.data.token);
@@ -129,14 +224,15 @@
 
         console.log('socket: ', socket);
 
-        updateSocketEvents();
+        setSocketEvents();
         getGames();
 
-        document.getElementById('content').style.display = 'block';
+        document.getElementById('roomList').style.display = 'block';
         document.getElementById('login').style.display = 'none';
         document.getElementById('currentUsername').innerHTML = username;
       }
 
+      window.startRoom = startRoom;
       window.createRoom = createRoom;
       window.joinRoom = joinRoom;
       window.logInto = logInto;
@@ -147,11 +243,12 @@
       <button onclick="logInto(event, 'Gustavo1')">Logar Gustavo1</button>
     </div>
 
-    <div id="content" style="display: none">
-      <span
-        style="display: block; color: white; margin-bottom: 10px"
-        id="currentUsername"
-      ></span>
+    <span
+      style="display: block; color: white; margin-bottom: 10px"
+      id="currentUsername"
+    ></span>
+
+    <div id="roomList" style="display: none">
       <button onclick="createRoom(event)">Criar sala</button>
       <input type="text" placeholder="Nome da sala" id="create" />
 
@@ -160,5 +257,7 @@
         style="color: white; display: flex; flex-direction: column; gap: 15px"
       ></div>
     </div>
+
+    <div id="currentGame"></div>
   </body>
 </html>

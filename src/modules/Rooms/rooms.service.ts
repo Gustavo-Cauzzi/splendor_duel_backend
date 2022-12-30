@@ -1,5 +1,7 @@
 import AppError from '../../shared/exceptions/AppException';
 import Room from './Room';
+import * as GameService from '../Game/game.service';
+import { usersSockets } from '@modules/Users/users.service';
 
 const rooms: Room[] = [];
 
@@ -41,6 +43,34 @@ export const joinRoom = (roomId: string, userId: string) => {
 
   room.connectedPlayersIds.push(userId);
   room.numberOfPlayers++;
+
+  return room;
+};
+
+export const startGame = (userId: string, roomId: string) => {
+  console.log('startGame');
+  const room = rooms.find(room => room.id === roomId);
+
+  if (!room) {
+    throw new AppError(
+      'Não foi possível localizar a sala com id solicitado',
+      400,
+    );
+  }
+
+  if (room.leaderPlayerId !== userId) {
+    throw new AppError('Apenas o líder da sala pode iniciá-la', 401);
+  }
+
+  if (room.connectedPlayersIds.length !== 2) {
+    // Splendor specific rule
+    throw new AppError(
+      `Não há jogadores suficientes para iniciar a partida (${room.connectedPlayersIds.length})`,
+      401,
+    );
+  }
+
+  room.game = GameService.startGame(room);
 
   return room;
 };

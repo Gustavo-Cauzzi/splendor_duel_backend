@@ -1,7 +1,5 @@
 import { ApplicationIoRouter } from '@modules/router';
-import AppError from '@shared/exceptions/AppException';
 import express from 'express';
-import { IncomingMessage } from 'http';
 import {
   assignSocketToUser,
   createUser,

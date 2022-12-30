@@ -2,7 +2,12 @@ import { ApplicationIoRouter } from '@modules/router';
 import { usersSockets } from '@modules/Users/users.service';
 import AppError from '@shared/exceptions/AppException';
 import express from 'express';
-import { createRoom, getAllOpenRooms, joinRoom } from './rooms.service';
+import {
+  createRoom,
+  getAllOpenRooms,
+  joinRoom,
+  startGame,
+} from './rooms.service';
 const RoomsRouter = express.Router();
 
 RoomsRouter.get('/', (req, res) => {
@@ -31,23 +36,40 @@ RoomsRouter.patch('/join', (req, res) => {
   // Comunica para todos os OUTROS sockets conectados que uma sala precisa ser atualizada
   userSocket.broadcast.emit('/rooms/update', room);
 
-  const otherUserId = room.connectedPlayersIds.find(
+  const otherUsersIds = room.connectedPlayersIds.filter(
     userId => userId !== joiningUserId,
   );
 
-  if (!otherUserId)
+  const otherUsersSocket = otherUsersIds.map(
+    otherUserId => usersSockets[otherUserId],
+  );
+  if (otherUsersSocket.length !== otherUsersIds.length)
     throw new AppError(
-      'Não foi possível encontrar o outro jogador da sala',
+      'Algum socket de outro jogador conectado na sala não pode ser localizado',
       400,
     );
 
-  const otherUserSocket = usersSockets[otherUserId];
-  if (!otherUserSocket)
-    throw new AppError('Socket do outro jogador não encontrado', 400);
-
-  otherUserSocket.emit('/rooms/current/update');
+  otherUsersSocket.forEach(socket => socket.emit('/rooms/current/update'));
 
   return res.status(202).json(room);
+});
+
+RoomsRouter.get('/start/:roomId', (req, res) => {
+  const roomId = req.params.roomId;
+
+  if (!roomId) throw new AppError('roomId não informado', 400);
+
+  const room = startGame(req.user.id, roomId);
+
+  room.connectedPlayersIds.forEach(playerId => {
+    const socket = usersSockets[playerId];
+    if (!socket)
+      throw new AppError(`Socket do usuário ${playerId} não encontrado`);
+
+    socket.emit('/room/started', room);
+  });
+
+  return res.json(room).status(200);
 });
 
 // Para comunicações Cliente > Servidor

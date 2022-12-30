@@ -3,9 +3,9 @@ import { Request, Response, NextFunction } from 'express';
 
 export const errorMiddleware = (
   err: Error,
-  request: Request,
+  _request: Request,
   response: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ) => {
   console.error(err);
 
