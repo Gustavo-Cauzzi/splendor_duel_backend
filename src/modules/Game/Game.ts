@@ -1,6 +1,6 @@
 export type UUID = string; // Só para deixar mais legível
 
-export type StoreCardLevel = 1 | 2 | 3; // 1 = Básica, 2 = Intermediária, 3 = Avançada
+export type StoreCardLevel = 1 | 2 | 3; // 1 = Avançada, 2 = Intermediária, 3 = Básica
 
 export type ChipColors =
   | 'Red'
