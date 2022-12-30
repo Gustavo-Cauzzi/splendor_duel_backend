@@ -20,7 +20,11 @@ export const createRoomGame = (): Game => {
     started: false,
     alreadyPlayedCards: [],
     board: [[], [], [], [], []],
-    currentPlayerTurn: null,
+    currentTurn: {
+      canBuyACard: true,
+      canPickGemsFromTheBoard: true,
+      currentPlayerTurn: null,
+    },
     playerInfo: {},
     royals: [],
     store: {
@@ -167,7 +171,7 @@ export const getChipsFromBoard = (
   if (!room.connectedPlayersIds.includes(userId))
     throw new AppError('Jogador não pertence a essa sala', 401);
 
-  if (room.game.currentPlayerTurn !== userId)
+  if (room.game.currentTurn.currentPlayerTurn !== userId)
     throw new AppError('Não é a vez do jogador tentando jogar', 401);
 
   if (!validateBoardPlayCombination(boardPlayCombination, room.game.board))
@@ -175,7 +179,8 @@ export const getChipsFromBoard = (
 
   boardPlayCombination.forEach(([coordY, coordX]) => {
     const cellColor = room.game.board[coordY][coordX];
-    if (!cellColor) throw new Error('validateBoardPlayCombination incorreto');
+    if (!cellColor)
+      throw new AppError('validateBoardPlayCombination incorreto', 500); // VAI QUE...
     room.game.board[coordY][coordX] = undefined;
     room.game.playerInfo[userId].chips[cellColor]++;
   });

@@ -49,9 +49,14 @@ export interface RoyalCard {
   sideEffects: SideEffect | undefined;
 }
 
+export interface CurrentTurnInfo {
+  currentPlayerTurn: UUID | null;
+  canPickGemsFromTheBoard: boolean;
+  canBuyACard: boolean;
+}
 export interface Game {
   id: UUID;
-  currentPlayerTurn: UUID | null;
+  currentTurn: CurrentTurnInfo;
   started: boolean;
   board: (ChipColors | undefined)[][];
   playerInfo: Record<UUID, PlayerInfo>;
