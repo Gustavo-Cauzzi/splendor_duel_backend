@@ -8,7 +8,7 @@ const GameRouter = express.Router();
 
 const games: Game[] = [];
 
-GameRouter.post('/:gameId/board/getChips/', (req, res) => {
+GameRouter.post('/:gameId/board/getGems/', (req, res) => {
   const play = req.body.play;
 
   console.log(
@@ -20,7 +20,7 @@ GameRouter.post('/:gameId/board/getChips/', (req, res) => {
   if (!play || !req.params.gameId)
     throw new AppError('Parâmetros inválidos', 422);
 
-  const room = GameService.getChipsFromBoard(
+  const room = GameService.getGemsFromBoard(
     req.user.id,
     req.params.gameId,
     play,
@@ -34,7 +34,7 @@ GameRouter.post('/:gameId/board/getChips/', (req, res) => {
         throw new AppError(
           `Não foi possível localizar o socket do usuário de id ${otherUserId}`,
         );
-      socket.emit('/game/board/chipsAcquired', { play, room });
+      socket.emit('/game/board/gemsAcquired', { play, room });
     });
 
   return res.status(200).json(room);

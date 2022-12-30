@@ -104,8 +104,8 @@
           roomStarted(room);
         });
 
-        socket.on('/game/board/chipsAcquired', ({ room, play }) => {
-          console.log(`game/board/chipsAcquired\n`, room, play);
+        socket.on('/game/board/gemsAcquired', ({ room, play }) => {
+          console.log(`game/board/gemsAcquired\n`, room, play);
           document.getElementById('board').innerHTML = renderBoard(
             room.game.board,
           );
@@ -138,7 +138,7 @@
           room.game.currentTurn.currentPlayerTurn === loggedUserId;
         document.getElementById('roomList').innerHTML = '';
         document.getElementById('currentGameOpts').style.display = 'flex';
-        document.getElementById('btnGetChips').disabled = !yourTurn;
+        document.getElementById('btnGetGems').disabled = !yourTurn;
         document.getElementById('currentGame').innerHTML = `
           <h1>Jogo</h1>
           <p>Id: ${room.id}</p>
@@ -194,7 +194,7 @@
         currentRoom = room;
       }
 
-      async function getBoardChips() {
+      async function getBoardGems() {
         // Sim! tinha um jeito melhor de fazer isso, mas eu não me importo pq isso é só um teste.
         const x1 = Number(document.getElementById('x1').value);
         const x2 = Number(document.getElementById('x2').value);
@@ -203,7 +203,7 @@
         const y2 = Number(document.getElementById('y2').value);
         const y3 = Number(document.getElementById('y3').value);
         const response = await api.post(
-          `/games/${currentRoom.game.id}/board/getChips/`,
+          `/games/${currentRoom.game.id}/board/getGems/`,
           {
             play: [
               // Y primeiro pois é uma matriz
@@ -230,7 +230,7 @@
         return `
           <div style="display: flex; gap: 10px">
             <span>Seus dados:</span>
-            ${Object.entries(yourInfo.chips)
+            ${Object.entries(yourInfo.gems)
               .map(
                 ([color, amount]) => `<span><b>${color}:</b> ${amount}</span>`,
               )
@@ -238,7 +238,7 @@
           </div>
           <div style="display: flex; gap: 10px">
             <span>Dados do outro jogador:</span>
-            ${Object.entries(otherInfo.chips)
+            ${Object.entries(otherInfo.gems)
               .map(
                 ([color, amount]) => `<span><b>${color}:</b> ${amount}</span>`,
               )
@@ -345,7 +345,7 @@
       window.createRoom = createRoom;
       window.joinRoom = joinRoom;
       window.logInto = logInto;
-      window.getBoardChips = getBoardChips;
+      window.getBoardGems = getBoardGems;
     </script>
 
     <div id="login">
@@ -387,7 +387,7 @@
         <input type="text" id="y3" placeholder="1" />
       </div>
       <small>Coordenada (0,0) = Canto superior esquerdo</small>
-      <button onclick="getBoardChips()" id="btnGetChips">Pegar chips</button>
+      <button onclick="getBoardGems()" id="btnGetGems">Pegar gems</button>
     </div>
   </body>
 </html>

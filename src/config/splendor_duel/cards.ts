@@ -22,7 +22,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Green: 6,
       },
       sideEffect: undefined, // https://www.youtube.com/watch?v=OcniwpVyni4&ab_channel=RomirPlayHouse
-      chipValue: 1,
+      gemValue: 1,
     },
     {
       color: 'Red',
@@ -35,7 +35,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Pink: 1,
       },
       sideEffect: undefined, // https://www.youtube.com/watch?v=OcniwpVyni4&ab_channel=RomirPlayHouse
-      chipValue: 1,
+      gemValue: 1,
     },
     {
       color: 'Blue',
@@ -48,7 +48,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Pink: 1,
       },
       sideEffect: undefined, // https://www.youtube.com/watch?v=OcniwpVyni4&ab_channel=RomirPlayHouse
-      chipValue: 1,
+      gemValue: 1,
     },
     {
       color: 'Red',
@@ -60,7 +60,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Black: 2,
       },
       sideEffect: undefined, // https://www.youtube.com/watch?v=OcniwpVyni4&ab_channel=RomirPlayHouse
-      chipValue: 1,
+      gemValue: 1,
     },
   ]),
   2: injectIds([
@@ -73,7 +73,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Pink: 1,
       },
       sideEffect: 'AnyValue',
-      chipValue: 1,
+      gemValue: 1,
     },
     {
       color: 'Blue',
@@ -86,7 +86,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Pink: 1,
       },
       sideEffect: undefined,
-      chipValue: 1,
+      gemValue: 1,
     },
     {
       color: 'Red',
@@ -96,8 +96,8 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Blue: 3,
         Black: 4,
       },
-      sideEffect: 'StealChipOtherPlayer',
-      chipValue: 1,
+      sideEffect: 'StealGemOtherPlayer',
+      gemValue: 1,
     },
     {
       color: 'White',
@@ -108,12 +108,12 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Green: 2,
       },
       sideEffect: undefined,
-      chipValue: 2,
+      gemValue: 2,
     },
   ]),
   3: injectIds([
     {
-      chipValue: 1,
+      gemValue: 1,
       color: 'Neutral',
       crowns: 0,
       points: 1,
@@ -125,7 +125,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
     },
     {
       points: 1,
-      chipValue: 1,
+      gemValue: 1,
       color: 'Black',
       crowns: 0,
       price: {
@@ -135,7 +135,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
       sideEffect: undefined,
     },
     {
-      chipValue: 1,
+      gemValue: 1,
       color: 'Neutral',
       crowns: 1,
       points: 0,
@@ -147,7 +147,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
       sideEffect: 'AnyValue',
     },
     {
-      chipValue: 1,
+      gemValue: 1,
       color: 'Neutral',
       crowns: 0,
       points: 1,
@@ -160,7 +160,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
       sideEffect: 'AnyValue',
     },
     {
-      chipValue: 1,
+      gemValue: 1,
       color: 'Black',
       crowns: 1,
       points: 0,

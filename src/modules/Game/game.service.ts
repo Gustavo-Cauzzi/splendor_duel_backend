@@ -1,6 +1,6 @@
 import { boardOrderConfig } from '@config/splendor_duel/board';
 import { cards, cardsPerLevel } from '@config/splendor_duel/cards';
-import { totalChipCountConfig } from '@config/splendor_duel/chips';
+import { totalGemCountConfig } from '@config/splendor_duel/gems';
 import Room from '@modules/Rooms/Room';
 import { rooms } from '@modules/Rooms/rooms.service';
 import AppError from '@shared/exceptions/AppException';
@@ -8,7 +8,7 @@ import { v4 } from 'uuid';
 import {
   BoardPlayCombination,
   Card,
-  ChipColors,
+  GemColors,
   Game,
   StoreCardLevel,
   UUID,
@@ -59,11 +59,11 @@ const randomizeStoreLevel = (
 };
 
 const recalculateBag = (game: Game) => {
-  const bag = { ...totalChipCountConfig };
+  const bag = { ...totalGemCountConfig };
   game.board.forEach(row => row.forEach(cell => cell && bag[cell]--));
   Object.values(game.playerInfo).forEach(playerInfo =>
-    Object.entries(playerInfo.chips).forEach(
-      ([color, amount]) => (bag[color as ChipColors] -= amount),
+    Object.entries(playerInfo.gems).forEach(
+      ([color, amount]) => (bag[color as GemColors] -= amount),
     ),
   );
   return bag;
@@ -84,7 +84,7 @@ const repopulateBoard = (game: Game) => {
 
     const randomColor = colorsWithAvaliableGems[
       Math.floor(Math.random() * colorsWithAvaliableGems.length)
-    ] as ChipColors;
+    ] as GemColors;
 
     game.board[y][x] = randomColor;
     bag[randomColor]--;
@@ -114,7 +114,7 @@ export const startGame = (room: Room) => {
       .map(id => ({
         [id]: {
           cards: [],
-          chips: {
+          gems: {
             Black: 0,
             Blue: 0,
             Green: 0,
@@ -159,7 +159,7 @@ const validateBoardPlayCombination = (
   return true;
 };
 
-export const getChipsFromBoard = (
+export const getGemsFromBoard = (
   userId: UUID,
   gameId: UUID,
   boardPlayCombination: BoardPlayCombination,
@@ -182,7 +182,7 @@ export const getChipsFromBoard = (
     if (!cellColor)
       throw new AppError('validateBoardPlayCombination incorreto', 500); // VAI QUE...
     room.game.board[coordY][coordX] = undefined;
-    room.game.playerInfo[userId].chips[cellColor]++;
+    room.game.playerInfo[userId].gems[cellColor]++;
   });
 
   return room;
