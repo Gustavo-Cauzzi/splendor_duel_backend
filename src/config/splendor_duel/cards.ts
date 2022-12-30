@@ -72,7 +72,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Green: 6,
         Pink: 1,
       },
-      sideEffect: SideEffect.AnyValue,
+      sideEffect: 'AnyValue',
       chipValue: 1,
     },
     {
@@ -96,7 +96,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Blue: 3,
         Black: 4,
       },
-      sideEffect: SideEffect.StealChipOtherPlayer,
+      sideEffect: 'StealChipOtherPlayer',
       chipValue: 1,
     },
     {
@@ -121,7 +121,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Black: 4,
         Pink: 1,
       },
-      sideEffect: SideEffect.AnyValue,
+      sideEffect: 'AnyValue',
     },
     {
       points: 1,
@@ -144,7 +144,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
 
         Pink: 1,
       },
-      sideEffect: SideEffect.AnyValue,
+      sideEffect: 'AnyValue',
     },
     {
       chipValue: 1,
@@ -157,7 +157,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
         Black: 1,
         Pink: 1,
       },
-      sideEffect: SideEffect.AnyValue,
+      sideEffect: 'AnyValue',
     },
     {
       chipValue: 1,

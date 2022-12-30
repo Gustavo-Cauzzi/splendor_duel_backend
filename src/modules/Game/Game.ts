@@ -11,13 +11,18 @@ export type ChipColors =
   | 'White'
   | 'Gold';
 
-export enum SideEffect {
-  PlayAgain = 'PlayAgain',
-  StealChipOtherPlayer = 'StealChipOtherPlayer',
-  GetAPrivilegde = 'GetAPrivilegde',
-  GetChipFromBoard = 'GetChipFromBoard',
-  AnyValue = 'AnyValue',
-}
+export type SideEffect =
+  | 'PlayAgain'
+  | 'StealChipOtherPlayer'
+  | 'GetAPrivilegde'
+  | 'GetChipFromBoard'
+  | 'AnyValue';
+
+export type BoardPlayCombination = [
+  [number, number],
+  [number, number],
+  [number, number],
+];
 
 export interface Card {
   id: UUID; // No catálogo de cartas, cada uma tem que ser catalogada com um ID para sabermos quais já entraram no jogo
@@ -49,7 +54,7 @@ export interface Game {
   currentPlayerTurn: UUID | null;
   started: boolean;
   board: (ChipColors | undefined)[][];
-  playerInfo: [PlayerInfo, PlayerInfo];
+  playerInfo: Record<UUID, PlayerInfo>;
   royals: RoyalCard[];
   store: Record<StoreCardLevel, Card[]>;
   alreadyPlayedCards: UUID[]; // Guardar quais cartas não deve aparecer dos decks da loja novamente

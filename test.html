@@ -54,6 +54,10 @@
         headers: {},
       });
 
+      // Store
+      let loggedUserId = null;
+      let currentRoom = null;
+
       api.interceptors.response.use(
         resp => resp,
         error => {
@@ -89,35 +93,62 @@
           console.log(`/room/started\n`, room);
           roomStarted(room);
         });
+
+        socket.on('/game/board/chipsAcquired', ({ room, play }) => {
+          console.log(`game/board/chipsAcquired\n`, room, play);
+          document.getElementById('board').innerHTML = renderBoard(
+            room.game.board,
+          );
+          document.getElementById('playerData').innerHTML = renderPlayersInfo(
+            room.game,
+          );
+        });
       }
 
       function startRoom(roomId) {
         api.get(`/rooms/start/${roomId}`); // irá disparar o socket quando começado
       }
 
+      function renderBoard(board) {
+        return board
+          .map(
+            row =>
+              `<div>${row
+                .map(
+                  cell =>
+                    `<button style="width: 55px;">${cell ?? 'Vazio'}</button>`,
+                )
+                .join('')}</div>`,
+          )
+          .join('');
+      }
+
       function roomStarted(room) {
+        const yourTurn = room.game.currentPlayerTurn === loggedUserId;
         document.getElementById('roomList').innerHTML = '';
+        document.getElementById('currentGameOpts').style.display = 'flex';
+        document.getElementById('btnGetChips').disabled = !yourTurn;
         document.getElementById('currentGame').innerHTML = `
           <h1>Jogo</h1>
           <p>Id: ${room.id}</p>
           <p>Nome: ${room.name}</p>
 
+          <div id="turnInfo">
+            ${
+              yourTurn
+                ? '<h2>Seu turno!</h2>'
+                : '<h2>Não é seu turno, aguarde!</h2>'
+            }
+          </div>
+
+          <div id="playerData" class="flex-para-baixo">
+            ${renderPlayersInfo(room.game)}
+          </div>
+
           <div class="flex-para-baixo">
             <h2>Board: </h2>
-            <div class="flex-para-baixo" style="gap: 15px;">
-              ${room.game.board
-                .map(
-                  row =>
-                    `<div>${row
-                      .map(
-                        cell =>
-                          `<button style="width: 55px;">${
-                            cell ?? 'Vazio'
-                          }</button>`,
-                      )
-                      .join('')}</div>`,
-                )
-                .join('')}
+            <div class="flex-para-baixo" style="gap: 15px;" id="board">
+              ${renderBoard(room.game.board)}
             </div>
           </div>
 
@@ -148,6 +179,60 @@
             </div>
           </div>
           `;
+        currentRoom = room;
+      }
+
+      async function getBoardChips() {
+        // Sim! tinha um jeito melhor de fazer isso, mas eu não me importo pq isso é só um teste.
+        const x1 = Number(document.getElementById('x1').value);
+        const x2 = Number(document.getElementById('x2').value);
+        const x3 = Number(document.getElementById('x3').value);
+        const y1 = Number(document.getElementById('y1').value);
+        const y2 = Number(document.getElementById('y2').value);
+        const y3 = Number(document.getElementById('y3').value);
+        const response = await api.post(
+          `/games/${currentRoom.game.id}/board/getChips/`,
+          {
+            play: [
+              // Y primeiro pois é uma matriz
+              [y1, x1],
+              [y2, x2],
+              [y3, x3],
+            ],
+          },
+        );
+        currentRoom = response.data;
+        document.getElementById('board').innerHTML = renderBoard(
+          response.data.game.board,
+        );
+        document.getElementById('playerData').innerHTML = renderPlayersInfo(
+          response.data.game,
+        );
+      }
+
+      function renderPlayersInfo(game) {
+        const yourInfo = game.playerInfo[loggedUserId];
+        const otherInfo = Object.entries(game.playerInfo).find(
+          ([userId]) => userId !== loggedUserId,
+        )[1];
+        return `
+          <div style="display: flex; gap: 10px">
+            <span>Seus dados:</span>
+            ${Object.entries(yourInfo.chips)
+              .map(
+                ([color, amount]) => `<span><b>${color}:</b> ${amount}</span>`,
+              )
+              .join('')}
+          </div>
+          <div style="display: flex; gap: 10px">
+            <span>Dados do outro jogador:</span>
+            ${Object.entries(otherInfo.chips)
+              .map(
+                ([color, amount]) => `<span><b>${color}:</b> ${amount}</span>`,
+              )
+              .join('')}
+          </div>
+        `;
       }
 
       function updateRoom(room) {
@@ -215,6 +300,10 @@
           })
           .then(res => res.data.token);
 
+        localStorage.setItem('@splendor_duel/jwt', token);
+        const { id } = parseJwt(token);
+        loggedUserId = id;
+
         api.defaults.headers = { Authorization: `Baerer ${token}` };
         socket = io('ws://localhost:3333', {
           auth: {
@@ -232,10 +321,19 @@
         document.getElementById('currentUsername').innerHTML = username;
       }
 
+      const parseJwt = token => {
+        try {
+          return JSON.parse(atob(token.split('.')[1]));
+        } catch (e) {
+          return null;
+        }
+      };
+
       window.startRoom = startRoom;
       window.createRoom = createRoom;
       window.joinRoom = joinRoom;
       window.logInto = logInto;
+      window.getBoardChips = getBoardChips;
     </script>
 
     <div id="login">
@@ -259,5 +357,25 @@
     </div>
 
     <div id="currentGame"></div>
+    <div id="currentGameOpts" style="display: none; flex-direction: column">
+      Fazer jogada:
+      <div style="display: flex; gap: 10px">
+        <span>x e y: </span>
+        <input type="text" id="x1" placeholder="0" />
+        <input type="text" id="y1" placeholder="1" />
+      </div>
+      <div style="display: flex; gap: 10px">
+        <span>x e y: </span>
+        <input type="text" id="x2" placeholder="1" />
+        <input type="text" id="y2" placeholder="1" />
+      </div>
+      <div style="display: flex; gap: 10px">
+        <span>x e y: </span>
+        <input type="text" id="x3" placeholder="2" />
+        <input type="text" id="y3" placeholder="1" />
+      </div>
+      <small>Coordenada (0,0) = Canto superior esquerdo</small>
+      <button onclick="getBoardChips()" id="btnGetChips">Pegar chips</button>
+    </div>
   </body>
 </html>

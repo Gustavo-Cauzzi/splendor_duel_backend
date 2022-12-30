@@ -3,7 +3,7 @@ import Room from './Room';
 import * as GameService from '../Game/game.service';
 import { usersSockets } from '@modules/Users/users.service';
 
-const rooms: Room[] = [];
+export const rooms: Room[] = [];
 
 export const createRoom = (name: string, creatingUserId: string) => {
   if (!name) throw new AppError('Nome não informado', 400);
@@ -48,7 +48,6 @@ export const joinRoom = (roomId: string, userId: string) => {
 };
 
 export const startGame = (userId: string, roomId: string) => {
-  console.log('startGame');
   const room = rooms.find(room => room.id === roomId);
 
   if (!room) {
