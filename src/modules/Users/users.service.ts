@@ -30,8 +30,13 @@ export const createUser = async (username: string, password: string) => {
   users.push(newUser);
   set(usersRef, users);
 
+  const token = jwt.sign(
+    { username: username, id: newUser.id },
+    authConfig.jwt.secret,
+  );
+
   const { password: _, ...response } = newUser;
-  return response;
+  return { ...response, token };
 };
 
 export const login = async (username: string, password: string) => {
