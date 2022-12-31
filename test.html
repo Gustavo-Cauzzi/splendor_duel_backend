@@ -113,6 +113,14 @@
             room.game,
           );
         });
+
+        socket.on('/game/store/cardBought', ({ room, cardId }) => {
+          console.log(`/game/store/cardBought\n`, room, cardId);
+          document.getElementById('store').innerHTML = renderStore(room.game);
+          document.getElementById('playerData').innerHTML = renderPlayersInfo(
+            room.game,
+          );
+        });
       }
 
       function startRoom(roomId) {
@@ -126,9 +134,37 @@
               `<div>${row
                 .map(
                   cell =>
-                    `<button style="width: 55px;">${cell ?? 'Vazio'}</button>`,
+                    `<button style="width: 55px;">${cell ?? '-'}</button>`,
                 )
                 .join('')}</div>`,
+          )
+          .join('');
+      }
+
+      function renderStore(game) {
+        const yourTurn = game.currentTurn.currentPlayerTurn === loggedUserId;
+
+        return Object.entries(game.store)
+          .map(
+            ([level, cards]) =>
+              `
+              <div style="display:grid;grid-template-columns: 50px 1fr;align-items:center">
+                <span>${level}</span>
+                <div style="display:flex; width: 100%; justify-content: center; gap: 5px;">
+                  ${cards.length === 0 ? 'Sem cartas ;-;' : ''}
+                  ${cards
+                    .map(
+                      card =>
+                        `<div style="padding: 1rem;" class="card ${
+                          yourTurn ? 'clickable' : ''
+                        }" onclick="buyCard('${card.id}')">
+                          ${JSON.stringify(card, null, 2)}
+                        </div>`,
+                    )
+                    .join('')}
+                </div>
+              </div>
+            `,
           )
           .join('');
       }
@@ -165,29 +201,8 @@
 
           <div class="flex-para-baixo">
             <h2>Store:</h2>
-            <div class="flex-para-baixo" style="gap:20px">
-              ${Object.entries(room.game.store)
-                .map(
-                  ([level, cards]) =>
-                    `
-                  <div style="display:grid;grid-template-columns: 50px 1fr;align-items:center">
-                    <span>${level}</span>
-                    <div style="display:flex; width: 100%; justify-content: center; gap: 5px;">
-                      ${cards.length === 0 ? 'Sem cartas ;-;' : ''}
-                      ${cards
-                        .map(
-                          card =>
-                            `<div style="padding: 1rem;" class="clickable" onclick="buyCard('${
-                              card.id
-                            }')">
-                              ${JSON.stringify(card)}
-                            </div>`,
-                        )
-                        .join('')}
-                    </div>
-                  </div>`,
-                )
-                .join('')}
+            <div class="flex-para-baixo" style="gap:20px" id="store">
+              ${renderStore(room.game)}
             </div>
           </div>
           `;
@@ -227,6 +242,7 @@
         const otherInfo = Object.entries(game.playerInfo).find(
           ([userId]) => userId !== loggedUserId,
         )[1];
+
         return `
           <div style="display: flex; gap: 10px">
             <span>Seus dados:</span>
@@ -236,6 +252,10 @@
               )
               .join('')}
           </div>
+          <div style="display: flex; gap: 10px; width: 100%;">
+            Cartas: ${yourInfo.cards.map(card => JSON.stringify(card, null, 2))}
+          </div>
+
           <div style="display: flex; gap: 10px">
             <span>Dados do outro jogador:</span>
             ${Object.entries(otherInfo.gems)
@@ -243,6 +263,11 @@
                 ([color, amount]) => `<span><b>${color}:</b> ${amount}</span>`,
               )
               .join('')}
+          </div>
+          <div style="display: flex; gap: 10px; width: 100%;">
+            Cartas: ${otherInfo.cards.map(card =>
+              JSON.stringify(card, null, 2),
+            )}
           </div>
         `;
       }
@@ -333,19 +358,23 @@
         document.getElementById('currentUsername').innerHTML = username;
       }
 
-      const parseJwt = token => {
-        try {
-          return JSON.parse(atob(token.split('.')[1]));
-        } catch (e) {
-          return null;
-        }
-      };
+      async function buyCard(cardId) {
+        const response = await api.post(
+          `/games/${currentRoom.game.id}/store/buy/${cardId}`,
+        );
+        document.getElementById('store').innerHTML = renderStore(
+          response.data.game,
+        );
+      }
+
+      const parseJwt = token => JSON.parse(atob(token.split('.')[1]));
 
       window.startRoom = startRoom;
       window.createRoom = createRoom;
       window.joinRoom = joinRoom;
       window.logInto = logInto;
       window.getBoardGems = getBoardGems;
+      window.buyCard = buyCard;
     </script>
 
     <div id="login">

@@ -101,10 +101,15 @@ const repopulateBoard = (game: Game) => {
 };
 
 export const startGame = (room: Room) => {
-  const newGame = {
+  const newGame: Game = {
     ...room.game,
     started: true,
-    currentPlayerTurn: room.connectedPlayersIds[Math.floor(Math.random() * 2)],
+    currentTurn: {
+      canBuyACard: true,
+      canPickGemsFromTheBoard: true,
+      currentPlayerTurn:
+        room.connectedPlayersIds[Math.floor(Math.random() * 2)],
+    },
     store: {
       1: randomizeStoreLevel(1, room.game.alreadyPlayedCards),
       2: randomizeStoreLevel(2, room.game.alreadyPlayedCards),
@@ -156,7 +161,24 @@ const validateBoardPlayCombination = (
   // Alguma célula selecionada está vazia
   if (boardPlayCombination.some(([y, x]) => !board[y][x])) return false;
 
+  // TODO: validar gemas douradas
+
   return true;
+};
+
+const getRoomByGameId = (gameId: UUID) => {
+  const room = rooms.find(room => room.game.id === gameId);
+  if (!room)
+    throw new AppError(`Sala com jogo de ID ${gameId} não foi encontrada`);
+  return room;
+};
+
+const assertPlayerCanPlay = (room: Room, userId: UUID) => {
+  if (!room.connectedPlayersIds.includes(userId))
+    throw new AppError('Jogador não pertence a essa sala', 401);
+
+  if (room.game.currentTurn.currentPlayerTurn !== userId)
+    throw new AppError('Não é a vez do jogador tentando jogar', 401);
 };
 
 export const getGemsFromBoard = (
@@ -164,15 +186,11 @@ export const getGemsFromBoard = (
   gameId: UUID,
   boardPlayCombination: BoardPlayCombination,
 ) => {
-  const room = rooms.find(room => room.game.id === gameId);
-  if (!room)
-    throw new AppError(`Sala com jogo de ID ${gameId} não foi encontrada`);
+  const room = getRoomByGameId(gameId);
+  assertPlayerCanPlay(room, userId);
 
-  if (!room.connectedPlayersIds.includes(userId))
-    throw new AppError('Jogador não pertence a essa sala', 401);
-
-  if (room.game.currentTurn.currentPlayerTurn !== userId)
-    throw new AppError('Não é a vez do jogador tentando jogar', 401);
+  if (!room.game.currentTurn.canPickGemsFromTheBoard)
+    throw new AppError('Jogador não pode pegar mais gemas no seu turno', 400);
 
   if (!validateBoardPlayCombination(boardPlayCombination, room.game.board))
     throw new AppError('Não é possível fazer tal jogada');
@@ -184,6 +202,82 @@ export const getGemsFromBoard = (
     room.game.board[coordY][coordX] = undefined;
     room.game.playerInfo[userId].gems[cellColor]++;
   });
+
+  room.game.currentTurn.canPickGemsFromTheBoard = false;
+
+  return room;
+};
+
+const replaceCardInStore = (cardId: UUID, game: Game) => {
+  const [cardLevel] =
+    Object.entries(game.store).find(([_level, cards]) =>
+      cards.find(card => card.id === cardId),
+    ) ?? [];
+
+  if (!cardLevel)
+    throw new AppError(`Não foi possível encontrar a carta ${cardId} na loja`);
+
+  const level = Number(cardLevel) as keyof Game['store'];
+
+  let possibleCards = cards[level].filter(
+    card =>
+      !game.alreadyPlayedCards.find(playedCardId => playedCardId === card.id),
+  );
+
+  if (possibleCards.length === 0) {
+    console.error(
+      'Não há mais cartas possíveis no catálogo de cartas ;-; ;-; ;-; ;-; ;-; ;-;',
+    );
+    // TODO apagar isso quando tiver todas as cartas catalogadas
+    possibleCards = cards[Number(cardLevel) as 1 | 2 | 3];
+  }
+
+  game.store[level] = game.store[level].map(card =>
+    card.id === cardId
+      ? possibleCards[Math.floor(Math.random() * possibleCards.length)]
+      : card,
+  );
+};
+
+export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
+  const room = getRoomByGameId(gameId);
+  assertPlayerCanPlay(room, userId);
+
+  const card = Object.values(room.game.store)
+    .flat()
+    .find(card => card.id === cardId);
+  if (!card)
+    throw new AppError('Carta não existe ou não está disponível na loja');
+
+  const userInfo = room.game.playerInfo[userId];
+
+  // Preço da carta com o seu preço real subtraido pelas cartas do jogador
+  const theoreticalPrice = Object.entries(card.price).map(
+    ([color, amount]) => ({
+      color: color as GemColors,
+      price: Math.max(
+        amount - userInfo.cards.filter(card => card.color === color).length,
+        0,
+      ),
+    }),
+  );
+
+  const notEnoughGems = theoreticalPrice.find(
+    ({ color, price }) => userInfo.gems[color] < price,
+  );
+
+  if (notEnoughGems)
+    throw new AppError(
+      `Jogador não possui gemas ${notEnoughGems.color} suficientes para comprar a carta`,
+    );
+
+  theoreticalPrice.forEach(
+    ({ color, price }) => (userInfo.gems[color] -= price),
+  );
+
+  userInfo.cards.push(card);
+  room.game.alreadyPlayedCards.push(card.id);
+  replaceCardInStore(cardId, room.game);
 
   return room;
 };

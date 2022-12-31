@@ -40,4 +40,22 @@ GameRouter.post('/:gameId/board/getGems/', (req, res) => {
   return res.status(200).json(room);
 });
 
+GameRouter.post('/:gameId/store/buy/:cardId', (req, res) => {
+  const { cardId, gameId } = req.params;
+  if (!cardId || !gameId) throw new AppError('Parâmetros invállidos', 422);
+  const room = GameService.buyCard(req.user.id, cardId, gameId);
+
+  room.connectedPlayersIds
+    .filter(id => id !== req.user.id)
+    .forEach(otherUserId => {
+      const socket = usersSockets[otherUserId];
+      if (!socket)
+        throw new AppError(
+          `Não foi possível localizar o socket do usuário de id ${otherUserId}`,
+        );
+      socket.emit('/game/store/cardBought', { cardId, room });
+    });
+
+  return res.status(200).json(room);
+});
 export { GameRouter };
