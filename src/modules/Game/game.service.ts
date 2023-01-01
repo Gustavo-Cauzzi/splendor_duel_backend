@@ -2,6 +2,7 @@ import { boardOrderConfig } from '@config/splendor_duel/board';
 import { cards, cardsPerLevel } from '@config/splendor_duel/cards';
 import { totalGemCountConfig } from '@config/splendor_duel/gems';
 import Room from '@modules/Rooms/Room';
+import { RoomsRouter } from '@modules/Rooms/rooms.router';
 import { rooms } from '@modules/Rooms/rooms.service';
 import AppError from '@shared/exceptions/AppException';
 import { v4 } from 'uuid';
@@ -12,6 +13,7 @@ import {
   Game,
   StoreCardLevel,
   UUID,
+  GemCoordinate,
 } from './Game';
 
 export const createRoomGame = (): Game => {
@@ -21,9 +23,12 @@ export const createRoomGame = (): Game => {
     alreadyPlayedCards: [],
     board: [[], [], [], [], []],
     currentTurn: {
-      canBuyACard: true,
-      canPickGemsFromTheBoard: true,
-      currentPlayerTurn: null,
+      secondayActions: {
+        canReplanishTheBoard: false,
+        canTradePrivilegeToGem: false,
+      },
+      canMakeMainAction: false,
+      currentPlayerTurn: undefined,
     },
     playerInfo: {},
     royals: [],
@@ -105,8 +110,11 @@ export const startGame = (room: Room) => {
     ...room.game,
     started: true,
     currentTurn: {
-      canBuyACard: true,
-      canPickGemsFromTheBoard: true,
+      canMakeMainAction: true,
+      secondayActions: {
+        canReplanishTheBoard: true,
+        canTradePrivilegeToGem: true,
+      },
       currentPlayerTurn:
         room.connectedPlayersIds[Math.floor(Math.random() * 2)],
     },
@@ -134,7 +142,20 @@ export const startGame = (room: Room) => {
         },
       }))
       .reduce((acc, obj) => ({ ...acc, ...obj }), {}),
+    privileges: 2,
   };
+
+  const notStartingPlayerId = room.connectedPlayersIds.find(
+    id => id !== newGame.currentTurn.currentPlayerTurn,
+  );
+
+  if (!notStartingPlayerId) {
+    throw new AppError(
+      'Não foi possível encontrar o id do jogador que não está começando',
+    );
+  }
+
+  newGame.playerInfo[notStartingPlayerId].privileges = 1;
 
   repopulateBoard(newGame);
 
@@ -161,7 +182,10 @@ const validateBoardPlayCombination = (
   // Alguma célula selecionada está vazia
   if (boardPlayCombination.some(([y, x]) => !board[y][x])) return false;
 
-  // TODO: validar gemas douradas
+  if (boardPlayCombination.some(([y, x]) => board[y][x] === 'Gold'))
+    throw new AppError(
+      'Não é possível pegar uma gema dourada sem ser pela reserva de cartas',
+    );
 
   return true;
 };
@@ -189,7 +213,7 @@ export const getGemsFromBoard = (
   const room = getRoomByGameId(gameId);
   assertPlayerCanPlay(room, userId);
 
-  if (!room.game.currentTurn.canPickGemsFromTheBoard)
+  if (!room.game.currentTurn.canMakeMainAction)
     throw new AppError('Jogador não pode pegar mais gemas no seu turno', 400);
 
   if (!validateBoardPlayCombination(boardPlayCombination, room.game.board))
@@ -203,7 +227,7 @@ export const getGemsFromBoard = (
     room.game.playerInfo[userId].gems[cellColor]++;
   });
 
-  room.game.currentTurn.canPickGemsFromTheBoard = false;
+  room.game.currentTurn.canMakeMainAction = false;
 
   return room;
 };
@@ -243,9 +267,16 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
   const room = getRoomByGameId(gameId);
   assertPlayerCanPlay(room, userId);
 
+  if (!room.game.currentTurn.canMakeMainAction)
+    throw new AppError(
+      'Jogador não pode mais comprar cartas no seu turno',
+      400,
+    );
+
   const card = Object.values(room.game.store)
     .flat()
     .find(card => card.id === cardId);
+
   if (!card)
     throw new AppError('Carta não existe ou não está disponível na loja');
 
@@ -262,22 +293,100 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
     }),
   );
 
-  const notEnoughGems = theoreticalPrice.find(
+  const notEnoughGems = theoreticalPrice.filter(
     ({ color, price }) => userInfo.gems[color] < price,
   );
 
-  if (notEnoughGems)
+  const goldenGemsRequired = notEnoughGems
+    .map(gems => gems.price)
+    .reduce((a, b) => a + b);
+
+  if (goldenGemsRequired > userInfo.gems.Gold)
     throw new AppError(
-      `Jogador não possui gemas ${notEnoughGems.color} suficientes para comprar a carta`,
+      `Jogador não possui gemas ${notEnoughGems
+        .map(gem => gem.color)
+        .join('')} suficientes para comprar a carta`,
     );
 
-  theoreticalPrice.forEach(
-    ({ color, price }) => (userInfo.gems[color] -= price),
-  );
+  [
+    ...theoreticalPrice,
+    { color: 'Gold' as GemColors, price: goldenGemsRequired },
+  ].forEach(({ color, price }) => (userInfo.gems[color] = Math.max(price, 0)));
 
   userInfo.cards.push(card);
   room.game.alreadyPlayedCards.push(card.id);
   replaceCardInStore(cardId, room.game);
+  // Depois de uma alção secundária
+  room.game.currentTurn.canMakeMainAction = false;
+  room.game.currentTurn.secondayActions.canReplanishTheBoard = false;
+  room.game.currentTurn.secondayActions.canTradePrivilegeToGem = false;
+
+  return room;
+};
+
+export const usePrivillegeToBuyGem = (
+  userId: UUID,
+  gameId: UUID,
+  gemPosition: GemCoordinate,
+) => {
+  const room = getRoomByGameId(gameId);
+  assertPlayerCanPlay(room, userId);
+
+  if (!room.game.currentTurn.secondayActions.canTradePrivilegeToGem) {
+    throw new AppError(
+      'Jogador não pode mais executar essa ação secundária',
+      401,
+    );
+  }
+
+  if (room.game.playerInfo[userId].privileges === 0) {
+    throw new AppError('Jogador não tem mais privilégios para executar a ação');
+  }
+
+  const board = room.game.board;
+  if (!board[gemPosition[0]][gemPosition[1]])
+    throw new AppError('Não há gemas nessa posição do tabuleiro');
+
+  if (board[gemPosition[0]][gemPosition[1]] === 'Gold')
+    throw new AppError(
+      'Não é possível pegar uma gema dourada no tabuleiro usando um privilêgio',
+    );
+
+  // Adiciona uma gema para a cor escolhida
+  room.game.playerInfo[userId].gems[
+    board[gemPosition[0]][gemPosition[1]] as GemColors
+  ]++;
+
+  // Tira um privilégio
+  room.game.playerInfo[userId].privileges--;
+
+  // Jogador não pode mais executar uma ação secundária
+  room.game.currentTurn.secondayActions.canTradePrivilegeToGem = false;
+
+  board[gemPosition[0]][gemPosition[1]] = undefined;
+
+  return room;
+};
+
+export const endCurrentTurn = (userId: UUID, gameId: UUID) => {
+  const room = getRoomByGameId(gameId);
+  assertPlayerCanPlay(room, userId);
+
+  if (room.game.currentTurn.canMakeMainAction) {
+    throw new AppError(
+      'O jogador deve realizar sua ação principal antes de terminar o turno',
+    );
+  }
+
+  const otherPlayerId = room.connectedPlayersIds.find(id => id !== userId);
+  room.game.currentTurn = {
+    currentPlayerTurn: otherPlayerId,
+    canMakeMainAction: true,
+    secondayActions: {
+      canReplanishTheBoard: true,
+      canTradePrivilegeToGem: true,
+    },
+  };
 
   return room;
 };

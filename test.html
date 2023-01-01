@@ -121,20 +121,47 @@
             room.game,
           );
         });
+
+        socket.on('/game/turnEnded', ({ room }) => {
+          console.log(`/game/turnEnded\n`, room);
+          currentRoom = room;
+          switchTurns(room);
+        });
       }
 
       function startRoom(roomId) {
         api.get(`/rooms/start/${roomId}`); // irá disparar o socket quando começado
       }
 
+      async function getGemUsingPrivilege(y, x) {
+        if (currentRoom.game.currentTurn.currentPlayerTurn !== loggedUserId) {
+          alert('Não é sua vez >:(');
+          return;
+        }
+
+        const response = await api.post(
+          `/games/${currentRoom.game.id}/board/getGemUsingPrivilege`,
+          { gemCoordinate: [y, x] },
+        );
+        document.getElementById('board').innerHTML = renderBoard(
+          response.data.room.game.board,
+        );
+
+        document.getElementById('playerData').innerHTML = renderPlayersInfo(
+          response.data.room.game,
+        );
+      }
+
       function renderBoard(board) {
         return board
           .map(
-            row =>
+            (row, y) =>
               `<div>${row
                 .map(
-                  cell =>
-                    `<button style="width: 55px;">${cell ?? '-'}</button>`,
+                  (cell, x) =>
+                    `<button style="width: 55px;" onclick="getGemUsingPrivilege(${y}, ${x})">${
+                      cell ?? '-'
+                    }</button>`,
                 )
                 .join('')}</div>`,
           )
@@ -167,6 +194,19 @@
             `,
           )
           .join('');
+      }
+
+      function switchTurns(room) {
+        const isYourTurn =
+          room.game.currentTurn.currentPlayerTurn === loggedUserId;
+        document.getElementById('btnEndTurn').disabled = !isYourTurn;
+        document
+          .querySelectorAll('card')
+          .forEach(cardEl => carlEl.classList.toggle('clickable'));
+        document.getElementById('turnInfo').innerHTML = isYourTurn
+          ? '<h2>Seu turno!</h2>'
+          : '<h2>Não é seu turno, aguarde!</h2>';
+        document.getElementById('btnGetGems').disabled = !isYourTurn;
       }
 
       function roomStarted(room) {
@@ -205,8 +245,19 @@
               ${renderStore(room.game)}
             </div>
           </div>
+
+          <button onclick="endTurn()" ${
+            !yourTurn ? 'disabled' : ''
+          } id="btnEndTurn" style="margin-bottom: 10px">Terminar turno</button>
           `;
         currentRoom = room;
+      }
+
+      async function endTurn() {
+        const response = await api.post(
+          `/games/${currentRoom.game.id}/endTurn`,
+        );
+        switchTurns(response.data.room);
       }
 
       async function getBoardGems() {
@@ -255,6 +306,9 @@
           <div style="display: flex; gap: 10px; width: 100%;">
             Cartas: ${yourInfo.cards.map(card => JSON.stringify(card, null, 2))}
           </div>
+          <div style="display: flex; gap: 10px; width: 100%;margin-bottom:10px;">
+            Privilégios: ${yourInfo.privileges}
+          </div>
 
           <div style="display: flex; gap: 10px">
             <span>Dados do outro jogador:</span>
@@ -268,6 +322,9 @@
             Cartas: ${otherInfo.cards.map(card =>
               JSON.stringify(card, null, 2),
             )}
+          </div>
+          <div style="display: flex; gap: 10px; width: 100%;">
+            Privilégios: ${otherInfo.privileges}
           </div>
         `;
       }
@@ -374,7 +431,9 @@
       window.joinRoom = joinRoom;
       window.logInto = logInto;
       window.getBoardGems = getBoardGems;
+      window.getGemUsingPrivilege = getGemUsingPrivilege;
       window.buyCard = buyCard;
+      window.endTurn = endTurn;
     </script>
 
     <div id="login">

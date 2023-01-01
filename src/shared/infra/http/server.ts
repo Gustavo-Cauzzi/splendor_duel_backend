@@ -1,6 +1,6 @@
 import { User } from '@modules/Users/User';
 import cors from 'cors';
-import express, { json, NextFunction, Request, Response } from 'express';
+import express, { json } from 'express';
 import 'express-async-errors';
 import http from 'http';
 import { Server, Socket } from 'socket.io';

@@ -18,10 +18,12 @@ export type SideEffect =
   | 'GetGemFromBoard'
   | 'AnyValue';
 
+export type GemCoordinate = [number, number];
+
 export type BoardPlayCombination = [
-  [number, number],
-  [number, number],
-  [number, number],
+  GemCoordinate,
+  GemCoordinate,
+  GemCoordinate,
 ];
 
 export interface Card {
@@ -50,9 +52,12 @@ export interface RoyalCard {
 }
 
 export interface CurrentTurnInfo {
-  currentPlayerTurn: UUID | null;
-  canPickGemsFromTheBoard: boolean;
-  canBuyACard: boolean;
+  currentPlayerTurn: UUID | undefined;
+  canMakeMainAction: boolean;
+  secondayActions: {
+    canReplanishTheBoard: boolean;
+    canTradePrivilegeToGem: boolean;
+  };
 }
 export interface Game {
   id: UUID;
