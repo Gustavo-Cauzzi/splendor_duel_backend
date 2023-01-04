@@ -218,6 +218,30 @@ export const getGemsFromBoard = (
   if (!validateBoardPlayCombination(boardPlayCombination, room.game.board))
     throw new AppError('Não é possível fazer tal jogada');
 
+  if (
+    // Testar se as três gemas são da mesma exata cor
+    boardPlayCombination.reduce(
+      (acc, [y, x]) =>
+        (acc ?? room.game.board[y][x]) === room.game.board[y][x]
+          ? room.game.board[y][x]
+          : false,
+      undefined as string | boolean | undefined,
+    ) ||
+    // Duas delas são pérolas rosas
+    boardPlayCombination.filter(([y, x]) => room.game.board[y][x] === 'Pink')
+      .length === 2
+  ) {
+    const otherPlayerInfo = getOtherPlayerInfo(userId, room);
+    if (otherPlayerInfo.privileges !== 3) {
+      otherPlayerInfo.privileges++;
+      if (room.game.privileges === 0) {
+        room.game.playerInfo[userId].privileges--;
+      } else {
+        room.game.privileges--;
+      }
+    }
+  }
+
   boardPlayCombination.forEach(([coordY, coordX]) => {
     const cellColor = room.game.board[coordY][coordX];
     if (!cellColor)
@@ -396,6 +420,15 @@ export const endCurrentTurn = (userId: UUID, gameId: UUID) => {
   return room;
 };
 
+const getOtherPlayerInfo = (userId: UUID, room: Room) => {
+  const otherPlayerId = room.connectedPlayersIds.find(id => id !== userId);
+  if (!otherPlayerId)
+    throw new AppError(
+      'Não foi possível encontrar o id do outro jogador envolvido na partida',
+    );
+  return room.game.playerInfo[otherPlayerId];
+};
+
 export const reserveCard = (
   userId: UUID,
   gameId: UUID,
@@ -404,6 +437,11 @@ export const reserveCard = (
 ) => {
   const room = getRoomByGameId(gameId);
   assertPlayerCanPlay(room, userId);
+
+  if (room.game.playerInfo[userId].reservedCards.length >= 3)
+    throw new AppError(
+      'You cannot perform this action if you already have 3 reserved cards',
+    );
 
   // Garantir que o cardId esta na loja realmente
   const card = Object.values(room.game.store)
