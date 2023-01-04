@@ -7,6 +7,18 @@ import * as GameService from './game.service';
 
 const GameRouter = express.Router();
 
+/**
+ * body: {
+ *  play: [
+ *    [0, 1],
+ *    [1, 1],
+ *    [2, 1]
+ *  ]
+ * }
+ *
+ * OBS: Mandar as coordenadas como se fosse as coordenadas da matriz do tabuleiro
+ * com (0, 0) sendo o canto superior esquerdo.
+ */
 GameRouter.post('/:gameId/board/getGems/', (req, res) => {
   const play = req.body.play;
 
@@ -26,6 +38,9 @@ GameRouter.post('/:gameId/board/getGems/', (req, res) => {
   return res.status(200).json(room);
 });
 
+/**
+ * Nenhum body
+ */
 GameRouter.post('/:gameId/store/buy/:cardId', (req, res) => {
   const { cardId, gameId } = req.params;
   if (!cardId || !gameId) throw new AppError('Parâmetros invállidos', 422);
@@ -38,6 +53,11 @@ GameRouter.post('/:gameId/store/buy/:cardId', (req, res) => {
   return res.status(200).json(room);
 });
 
+/**
+ * body: {
+ *    gemCoordinate: [number, number]
+ * }
+ */
 GameRouter.post('/:gameId/board/getGemUsingPrivilege', (req, res) => {
   const gemCoordinate = req.body.gemCoordinate;
 
@@ -64,6 +84,32 @@ GameRouter.post('/:gameId/endTurn', (req, res) => {
   const room = GameService.endCurrentTurn(req.user.id, req.params.gameId);
 
   notifyAllOthers(req.user.id, room, '/game/turnEnded', { room });
+
+  return res.status(200).json({ room });
+});
+
+/**
+ * Para reservar uma carta, é necessário recolher uma gema dorada. Enviar no body então a coordenada dessa gema
+ *
+ * body: {
+ *    gemCoordinate: [number, number]
+ * }
+ */
+GameRouter.post('/:gameId/reserveCard/:cardId', (req, res) => {
+  const { cardId, gameId } = req.params;
+  const gemCoordinate = req.body.gemCoordinate;
+
+  if (!cardId || !gameId || !gemCoordinate)
+    throw new AppError('Parâmetros inválidos', 422);
+
+  const room = GameService.reserveCard(
+    req.user.id,
+    gameId,
+    cardId,
+    gemCoordinate,
+  );
+
+  notifyAllOthers(req.user.id, room, '/game/cardReserved', { room });
 
   return res.status(200).json({ room });
 });

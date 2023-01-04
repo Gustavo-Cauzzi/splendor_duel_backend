@@ -127,6 +127,18 @@
           currentRoom = room;
           switchTurns(room);
         });
+
+        socket.on('/game/cardReserved', ({ room }) => {
+          console.log(`/game/cardReserved\n`, room);
+          currentRoom = room;
+          document.getElementById('store').innerHTML = renderStore(room.game);
+          document.getElementById('playerData').innerHTML = renderPlayersInfo(
+            room.game,
+          );
+          document.getElementById('board').innerHTML = renderBoard(
+            room.game.board,
+          );
+        });
       }
 
       function startRoom(roomId) {
@@ -159,9 +171,14 @@
               `<div>${row
                 .map(
                   (cell, x) =>
-                    `<button style="width: 55px;" onclick="getGemUsingPrivilege(${y}, ${x})">${
-                      cell ?? '-'
-                    }</button>`,
+                    `<button
+                      style="width: 55px;"
+                      onclick="${
+                        cell === 'Gold' ? 'reserveCard' : 'getGemUsingPrivilege'
+                      }(${y}, ${x})"
+                    >
+                      ${cell ?? '-'}
+                    </button>`,
                 )
                 .join('')}</div>`,
           )
@@ -246,9 +263,13 @@
             </div>
           </div>
 
-          <button onclick="endTurn()" ${
-            !yourTurn ? 'disabled' : ''
-          } id="btnEndTurn" style="margin-bottom: 10px">Terminar turno</button>
+          <div class="flex-para-baixo">
+            <input placeholder="id de uma carta a ser reservada" id="reservedCard"/>
+
+            <button onclick="endTurn()" ${
+              !yourTurn ? 'disabled' : ''
+            } id="btnEndTurn" style="margin-bottom: 10px">Terminar turno</button>
+          </div>
           `;
         currentRoom = room;
       }
@@ -424,6 +445,22 @@
         );
       }
 
+      async function reserveCard(y, x) {
+        const cardId = document.getElementById('reservedCard').value;
+        const response = await api.post(
+          `/games/${currentRoom.game.id}/reserveCard/${cardId}`,
+          { gemCoordinate: [y, x] },
+        );
+        const room = response.data.room;
+        document.getElementById('store').innerHTML = renderStore(room.game);
+        document.getElementById('playerData').innerHTML = renderPlayersInfo(
+          room.game,
+        );
+        document.getElementById('board').innerHTML = renderBoard(
+          room.game.board,
+        );
+      }
+
       const parseJwt = token => JSON.parse(atob(token.split('.')[1]));
 
       window.startRoom = startRoom;
@@ -434,6 +471,7 @@
       window.getGemUsingPrivilege = getGemUsingPrivilege;
       window.buyCard = buyCard;
       window.endTurn = endTurn;
+      window.reserveCard = reserveCard;
     </script>
 
     <div id="login">

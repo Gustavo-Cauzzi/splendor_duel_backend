@@ -2,25 +2,24 @@ import { boardOrderConfig } from '@config/splendor_duel/board';
 import { cards, cardsPerLevel } from '@config/splendor_duel/cards';
 import { totalGemCountConfig } from '@config/splendor_duel/gems';
 import Room from '@modules/Rooms/Room';
-import { RoomsRouter } from '@modules/Rooms/rooms.router';
 import { rooms } from '@modules/Rooms/rooms.service';
 import AppError from '@shared/exceptions/AppException';
 import { v4 } from 'uuid';
 import {
   BoardPlayCombination,
   Card,
-  GemColors,
   Game,
+  GemColors,
+  GemCoordinate,
   StoreCardLevel,
   UUID,
-  GemCoordinate,
 } from './Game';
 
 export const createRoomGame = (): Game => {
   return {
     id: v4(),
     started: false,
-    alreadyPlayedCards: [],
+    alreadyPlayedCardsId: [],
     board: [[], [], [], [], []],
     currentTurn: {
       secondayActions: {
@@ -119,9 +118,9 @@ export const startGame = (room: Room) => {
         room.connectedPlayersIds[Math.floor(Math.random() * 2)],
     },
     store: {
-      1: randomizeStoreLevel(1, room.game.alreadyPlayedCards),
-      2: randomizeStoreLevel(2, room.game.alreadyPlayedCards),
-      3: randomizeStoreLevel(3, room.game.alreadyPlayedCards),
+      1: randomizeStoreLevel(1, room.game.alreadyPlayedCardsId),
+      2: randomizeStoreLevel(2, room.game.alreadyPlayedCardsId),
+      3: randomizeStoreLevel(3, room.game.alreadyPlayedCardsId),
     },
     playerInfo: room.connectedPlayersIds
       .map(id => ({
@@ -245,7 +244,7 @@ const replaceCardInStore = (cardId: UUID, game: Game) => {
 
   let possibleCards = cards[level].filter(
     card =>
-      !game.alreadyPlayedCards.find(playedCardId => playedCardId === card.id),
+      !game.alreadyPlayedCardsId.find(playedCardId => playedCardId === card.id),
   );
 
   if (possibleCards.length === 0) {
@@ -314,12 +313,11 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
   ].forEach(({ color, price }) => (userInfo.gems[color] = Math.max(price, 0)));
 
   userInfo.cards.push(card);
-  room.game.alreadyPlayedCards.push(card.id);
+  room.game.alreadyPlayedCardsId.push(card.id);
   replaceCardInStore(cardId, room.game);
-  // Depois de uma alção secundária
-  room.game.currentTurn.canMakeMainAction = false;
-  room.game.currentTurn.secondayActions.canReplanishTheBoard = false;
-  room.game.currentTurn.secondayActions.canTradePrivilegeToGem = false;
+
+  // Não há nada mais que possa ser feito
+  invalidateAllActionsFromCurrentTurn(room.game);
 
   return room;
 };
@@ -368,6 +366,13 @@ export const usePrivillegeToBuyGem = (
   return room;
 };
 
+// Enibe todas as possibilidades de jogadas do jogador atual. Usado após uma jogada principal
+const invalidateAllActionsFromCurrentTurn = (game: Game) => {
+  game.currentTurn.canMakeMainAction = false;
+  game.currentTurn.secondayActions.canReplanishTheBoard = false;
+  game.currentTurn.secondayActions.canTradePrivilegeToGem = false;
+};
+
 export const endCurrentTurn = (userId: UUID, gameId: UUID) => {
   const room = getRoomByGameId(gameId);
   assertPlayerCanPlay(room, userId);
@@ -387,6 +392,49 @@ export const endCurrentTurn = (userId: UUID, gameId: UUID) => {
       canTradePrivilegeToGem: true,
     },
   };
+
+  return room;
+};
+
+export const reserveCard = (
+  userId: UUID,
+  gameId: UUID,
+  cardId: UUID,
+  goldenGemCoordinate: GemCoordinate,
+) => {
+  const room = getRoomByGameId(gameId);
+  assertPlayerCanPlay(room, userId);
+
+  // Garantir que o cardId esta na loja realmente
+  const card = Object.values(room.game.store)
+    .flat()
+    .find(card => card.id === cardId);
+  if (!card) throw new AppError('Carta requisitada não esta na loja');
+
+  if (
+    room.game.board[goldenGemCoordinate[0]][goldenGemCoordinate[1]] !== 'Gold'
+  )
+    throw new AppError(
+      'Não é possível reservar a carta com uma gema quen não é dourada',
+    );
+
+  const otherUserId = room.connectedPlayersIds.find(id => id !== userId);
+  if (!otherUserId)
+    throw new AppError('Não foi possível encontrar o outro jogador');
+
+  // Se não há mais privilégios na mesa, deve-se pegar do outro jogador (no caso, quem está reservando irá ter que perder um privilégio)
+  if (room.game.privileges) {
+    room.game.privileges--;
+  } else {
+    room.game.playerInfo[userId].privileges--;
+  }
+
+  room.game.playerInfo[otherUserId].privileges++;
+
+  room.game.playerInfo[userId].reservedCards.push(card);
+  room.game.alreadyPlayedCardsId.push(card.id);
+  replaceCardInStore(cardId, room.game);
+  invalidateAllActionsFromCurrentTurn(room.game);
 
   return room;
 };

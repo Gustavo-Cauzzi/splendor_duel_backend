@@ -67,6 +67,6 @@ export interface Game {
   playerInfo: Record<UUID, PlayerInfo>;
   royals: RoyalCard[];
   store: Record<StoreCardLevel, Card[]>;
-  alreadyPlayedCards: UUID[]; // Guardar quais cartas não deve aparecer dos decks da loja novamente
+  alreadyPlayedCardsId: UUID[]; // Guardar quais cartas não deve aparecer dos decks da loja novamente
   privileges: number;
 }
