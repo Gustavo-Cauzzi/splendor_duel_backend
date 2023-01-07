@@ -128,6 +128,12 @@
           switchTurns(room);
         });
 
+        socket.on('/game/royalBought', ({ room }) => {
+          console.log(`/game/royalBought\n`, room);
+          currentRoom = room;
+          document.getElementById('royals').innerHTML = renderRoyals(room.game);
+        });
+
         socket.on('/game/cardReserved', ({ room }) => {
           console.log(`/game/cardReserved\n`, room);
           currentRoom = room;
@@ -198,10 +204,13 @@
                   ${cards.length === 0 ? 'Sem cartas ;-;' : ''}
                   ${cards
                     .map(
+                      //prettier-ignore
                       card =>
-                        `<div style="padding: 1rem;" class="card ${
-                          yourTurn ? 'clickable' : ''
-                        }" onclick="buyCard('${card.id}')">
+                        `<div
+                          style="padding: 1rem;"
+                          class="card ${yourTurn ? 'clickable' : ''}"
+                          onclick="buyCard('${card.id}', ${card.color === 'Neutral'})"
+                        >
                           ${JSON.stringify(card, null, 2)}
                         </div>`,
                     )
@@ -263,6 +272,11 @@
             </div>
           </div>
 
+          <h2>Royals:</h2>
+          <div id="royals" style="display: flex; justify-content: space-around; width: 100%">
+            ${renderRoyals(room.game)}
+          </div>
+
           <div class="flex-para-baixo">
             <input placeholder="id de uma carta a ser reservada" id="reservedCard"/>
 
@@ -274,7 +288,29 @@
         currentRoom = room;
       }
 
+      function renderRoyals(game) {
+        const isYourTurn = game.currentTurn.currentPlayerTurn === loggedUserId;
+        return game.royals
+          .map(
+            royal =>
+              `
+            <div
+              class="card ${isYourTurn ? 'clickable' : ''}"
+              onclick="buyRoyal('${royal.id}')"
+            >
+            ${JSON.stringify(royal, null, 2)}
+            </div>
+          `,
+          )
+          .join('');
+      }
+
       async function endTurn() {
+        if (shouldPlayerBuyARoyal) {
+          alert('Você deve comprar uma realeza antes de terminar o turno');
+          return;
+        }
+
         const response = await api.post(
           `/games/${currentRoom.game.id}/endTurn`,
         );
@@ -325,7 +361,9 @@
               .join('')}
           </div>
           <div style="display: flex; gap: 10px; width: 100%;">
-            Cartas: ${yourInfo.cards.map(card => JSON.stringify(card, null, 2))}
+            Cartas: ${Object.values(yourInfo.cards).map(card =>
+              JSON.stringify(card, null, 2),
+            )}
           </div>
           <div style="display: flex; gap: 10px; width: 100%;margin-bottom:10px;">
             Privilégios: ${yourInfo.privileges}
@@ -340,7 +378,7 @@
               .join('')}
           </div>
           <div style="display: flex; gap: 10px; width: 100%;">
-            Cartas: ${otherInfo.cards.map(card =>
+            Cartas: ${Object.values(otherInfo.cards).map(card =>
               JSON.stringify(card, null, 2),
             )}
           </div>
@@ -436,10 +474,24 @@
         document.getElementById('currentUsername').innerHTML = username;
       }
 
-      async function buyCard(cardId) {
+      async function buyCard(cardId, isNeutral) {
+        const targetColor =
+          isNeutral &&
+          prompt('Escolha uma cor para a carta neutra (Red, Blue, Green...)');
+
         const response = await api.post(
           `/games/${currentRoom.game.id}/store/buy/${cardId}`,
+          { targetColor },
         );
+
+        const { crowns } = getWinConditionsStatus(
+          response.data.room.game.playerInfo[loggedUserId],
+        );
+
+        if (crowns % 3 === 0 && crowns !== 9) {
+          shouldPlayerBuyARoyal = true;
+        }
+
         document.getElementById('store').innerHTML = renderStore(
           response.data.game,
         );
@@ -461,9 +513,42 @@
         );
       }
 
+      let shouldPlayerBuyARoyal = true;
+      async function buyRoyal(royalId) {
+        if (!shouldPlayerBuyARoyal) {
+          alert('Não está na hora de comprar uma realeza');
+          return;
+        }
+
+        const response = await api.post(
+          `/games/${currentRoom.game.id}/royal/buy/${royalId}`,
+        );
+        const room = response.data.room;
+        document.getElementById('royals').innerHTML = renderRoyals(room.game);
+      }
+
       const parseJwt = token => JSON.parse(atob(token.split('.')[1]));
 
+      const getWinConditionsStatus = playerInfo => {
+        return Object.entries(playerInfo.cards)
+          .map(([color, cards]) => cards.map(card => ({ color, card })))
+          .flat()
+          .reduce(
+            (acc, { color, card }) => {
+              acc.points[color] += card.points;
+
+              return {
+                ...acc,
+                totalPoints: acc.totalPoints + card.points,
+                crowns: acc.crowns + card.crowns,
+              };
+            },
+            { crowns: 0, points: {}, totalPoints: 0 },
+          );
+      };
+
       window.startRoom = startRoom;
+      window.buyRoyal = buyRoyal;
       window.createRoom = createRoom;
       window.joinRoom = joinRoom;
       window.logInto = logInto;

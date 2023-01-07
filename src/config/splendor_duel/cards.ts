@@ -1,7 +1,13 @@
-import { Card, SideEffect, StoreCardLevel } from '@modules/Game/Game';
+import {
+  Card,
+  RoyalCard,
+  SideEffect,
+  StoreCardLevel,
+  UUID,
+} from '@modules/Game/Game';
 import { v4 } from 'uuid';
 
-const injectIds = (cards: Omit<Card, 'id'>[]) =>
+const injectIds = <T extends { id: UUID }>(cards: Omit<T, 'id'>[]) =>
   cards.map(card => ({ ...card, id: v4() }));
 
 export const cardsPerLevel: Record<StoreCardLevel, number> = {
@@ -10,8 +16,27 @@ export const cardsPerLevel: Record<StoreCardLevel, number> = {
   3: 5,
 };
 
-export const cards: Record<StoreCardLevel, Card[]> = {
-  1: injectIds([
+export const royalsRepository: RoyalCard[] = injectIds<RoyalCard>([
+  {
+    points: 3,
+    sideEffect: undefined,
+  },
+  {
+    points: 2,
+    sideEffect: 'GetAPrivilegde',
+  },
+  {
+    points: 2,
+    sideEffect: 'StealGemOtherPlayer',
+  },
+  {
+    points: 2,
+    sideEffect: 'PlayAgain',
+  },
+]);
+
+export const cardsRepository: Record<StoreCardLevel, Card[]> = {
+  1: injectIds<Card>([
     {
       color: 'Black',
       crowns: 0,
@@ -63,7 +88,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
       gemValue: 1,
     },
   ]),
-  2: injectIds([
+  2: injectIds<Card>([
     {
       color: 'White',
       crowns: 2,
@@ -111,7 +136,7 @@ export const cards: Record<StoreCardLevel, Card[]> = {
       gemValue: 2,
     },
   ]),
-  3: injectIds([
+  3: injectIds<Card>([
     {
       gemValue: 1,
       color: 'Neutral',

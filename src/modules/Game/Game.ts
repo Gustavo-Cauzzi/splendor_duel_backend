@@ -39,16 +39,15 @@ export interface Card {
 export interface PlayerInfo {
   privileges: number;
   gems: Record<GemColors, number>;
-  cards: Card[];
+  cards: Record<GemColors, Card[]>; // Tem que ser separado por cor pois há cartas que são de cores neutras e o jogador deve decidir para qual esta vai
   reservedCards: Card[];
   royals: RoyalCard[];
 }
 
 export interface RoyalCard {
   id: UUID;
-  crowns: number;
   points: number;
-  sideEffects: SideEffect | undefined;
+  sideEffect: SideEffect | undefined;
 }
 
 export interface CurrentTurnInfo {

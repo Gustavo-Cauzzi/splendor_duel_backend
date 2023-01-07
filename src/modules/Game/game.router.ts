@@ -39,12 +39,17 @@ GameRouter.post('/:gameId/board/getGems/', (req, res) => {
 });
 
 /**
- * Nenhum body
+ * Body: {
+ *  targetColor?: GemColors,
+ * }
+ *
+ * targetColor = Cor a ser considerada para a carta. Deve ser mandado quando está sendo comprado uma carta neutra (sem cor)
  */
 GameRouter.post('/:gameId/store/buy/:cardId', (req, res) => {
   const { cardId, gameId } = req.params;
+  const { targetColor } = req.body;
   if (!cardId || !gameId) throw new AppError('Parâmetros invállidos', 422);
-  const room = GameService.buyCard(req.user.id, cardId, gameId);
+  const room = GameService.buyCard(req.user.id, cardId, gameId, targetColor);
 
   notifyAllOthers(req.user.id, room, '/game/store/cardBought', {
     cardId,
@@ -110,6 +115,21 @@ GameRouter.post('/:gameId/reserveCard/:cardId', (req, res) => {
   );
 
   notifyAllOthers(req.user.id, room, '/game/cardReserved', { room });
+
+  return res.status(200).json({ room });
+});
+
+/**
+ * Nenhum body
+ */
+GameRouter.post('/:gameId/royal/buy/:royalId', (req, res) => {
+  const { royalId, gameId } = req.params;
+
+  if (!royalId || !gameId) throw new AppError('Parâmetros inválidos', 422);
+
+  const room = GameService.getRoyal(req.user.id, gameId, royalId);
+
+  notifyAllOthers(req.user.id, room, '/game/royalBought', { room });
 
   return res.status(200).json({ room });
 });

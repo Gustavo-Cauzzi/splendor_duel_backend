@@ -1,5 +1,9 @@
 import { boardOrderConfig } from '@config/splendor_duel/board';
-import { cards, cardsPerLevel } from '@config/splendor_duel/cards';
+import {
+  cardsPerLevel,
+  cardsRepository,
+  royalsRepository,
+} from '@config/splendor_duel/cards';
 import { totalGemCountConfig } from '@config/splendor_duel/gems';
 import Room from '@modules/Rooms/Room';
 import { rooms } from '@modules/Rooms/rooms.service';
@@ -11,6 +15,7 @@ import {
   Game,
   GemColors,
   GemCoordinate,
+  PlayerInfo,
   StoreCardLevel,
   UUID,
 } from './Game';
@@ -49,7 +54,10 @@ const randomizeStoreLevel = (
     (acc, _curr) => {
       let newCard: Card;
       do {
-        newCard = cards[level][Math.floor(Math.random() * cards[level].length)];
+        newCard =
+          cardsRepository[level][
+            Math.floor(Math.random() * cardsRepository[level].length)
+          ];
       } while (
         !newCard ||
         acc.some(card => card.id === newCard.id) ||
@@ -122,10 +130,19 @@ export const startGame = (room: Room) => {
       2: randomizeStoreLevel(2, room.game.alreadyPlayedCardsId),
       3: randomizeStoreLevel(3, room.game.alreadyPlayedCardsId),
     },
+    royals: royalsRepository,
     playerInfo: room.connectedPlayersIds
       .map(id => ({
         [id]: {
-          cards: [],
+          cards: {
+            Red: [],
+            Green: [],
+            Blue: [],
+            Black: [],
+            Pink: [],
+            White: [],
+            Gold: [],
+          },
           gems: {
             Black: 0,
             Blue: 0,
@@ -144,16 +161,39 @@ export const startGame = (room: Room) => {
     privileges: 2,
   };
 
-  const otherPlayerInfo = getOtherPlayerInfo(
-    newGame.currentTurn.currentPlayerTurn,
-    room,
+  const otherPlayerId = room.connectedPlayersIds.find(
+    id => id !== newGame.currentTurn.currentPlayerTurn,
   );
+  if (!otherPlayerId)
+    throw new AppError(
+      'It was not possible to find the other player involved in the game',
+    );
 
-  otherPlayerInfo.privileges = 1;
+  newGame.playerInfo[otherPlayerId].privileges = 1;
 
   repopulateBoard(newGame);
 
   return newGame;
+};
+
+const getWinConditionsStatus = (playerInfo: PlayerInfo) => {
+  return Object.entries(playerInfo.cards)
+    .map(([color, cards]) =>
+      cards.map(card => ({ color: color as keyof PlayerInfo['cards'], card })),
+    )
+    .flat()
+    .reduce(
+      (acc, { color, card }) => {
+        acc.points[color] += card.points;
+
+        return {
+          ...acc,
+          totalPoints: acc.totalPoints + card.points,
+          crowns: acc.crowns + card.crowns,
+        };
+      },
+      { crowns: 0, points: {} as Record<GemColors, number>, totalPoints: 0 },
+    );
 };
 
 const validateBoardPlayCombination = (
@@ -265,7 +305,7 @@ const replaceCardInStore = (cardId: UUID, game: Game) => {
 
   const level = Number(cardLevel) as keyof Game['store'];
 
-  let possibleCards = cards[level].filter(
+  let possibleCards = cardsRepository[level].filter(
     card =>
       !game.alreadyPlayedCardsId.find(playedCardId => playedCardId === card.id),
   );
@@ -275,7 +315,7 @@ const replaceCardInStore = (cardId: UUID, game: Game) => {
       'Não há mais cartas possíveis no catálogo de cartas ;-; ;-; ;-; ;-; ;-; ;-;',
     );
     // TODO apagar isso quando tiver todas as cartas catalogadas
-    possibleCards = cards[Number(cardLevel) as 1 | 2 | 3];
+    possibleCards = cardsRepository[Number(cardLevel) as 1 | 2 | 3];
   }
 
   game.store[level] = game.store[level].map(card =>
@@ -285,7 +325,12 @@ const replaceCardInStore = (cardId: UUID, game: Game) => {
   );
 };
 
-export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
+export const buyCard = (
+  userId: UUID,
+  cardId: UUID,
+  gameId: UUID,
+  targetColor?: GemColors,
+) => {
   const room = getRoomByGameId(gameId);
   assertPlayerCanPlay(room, userId);
 
@@ -299,16 +344,19 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
   if (!card)
     throw new AppError('This card is not available in the store anymore');
 
+  if (card.color === 'Neutral' && !targetColor)
+    throw new AppError('A color must be chosen for the neutral color card');
+
+  if (targetColor === 'Gold' || targetColor === 'Pink')
+    throw new AppError(`${targetColor} is not a valid color for a card`);
+
   const userInfo = room.game.playerInfo[userId];
 
   // Preço da carta com o seu preço real subtraido pelas cartas do jogador
   const theoreticalPrice = Object.entries(card.price).map(
     ([color, amount]) => ({
       color: color as GemColors,
-      price: Math.max(
-        amount - userInfo.cards.filter(card => card.color === color).length,
-        0,
-      ),
+      price: Math.max(amount - userInfo.cards[color as GemColors].length, 0),
     }),
   );
 
@@ -333,7 +381,10 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
     { color: 'Gold' as GemColors, price: goldenGemsRequired },
   ].forEach(({ color, price }) => (userInfo.gems[color] = Math.max(price, 0)));
 
-  userInfo.cards.push(card);
+  userInfo.cards[card.color === 'Neutral' ? targetColor! : card.color].push(
+    card,
+  );
+
   room.game.alreadyPlayedCardsId.push(card.id);
   replaceCardInStore(cardId, room.game);
 
@@ -469,6 +520,24 @@ export const reserveCard = (
   room.game.alreadyPlayedCardsId.push(card.id);
   replaceCardInStore(cardId, room.game);
   invalidateAllActionsFromCurrentTurn(room.game);
+
+  return room;
+};
+
+export const getRoyal = (userId: string, gameId: UUID, royalId: string) => {
+  const room = getRoomByGameId(gameId);
+  assertPlayerCanPlay(room, userId);
+
+  const { crowns } = getWinConditionsStatus(room.game.playerInfo[userId]);
+  if (Math.floor(crowns / 3) === room.game.playerInfo[userId].royals.length)
+    throw new AppError('User cannot get another royal right now');
+
+  const royal = room.game.royals.find(royal => royal.id === royalId);
+  if (!royal)
+    throw new AppError('Royal not found or is not available to purchase');
+
+  room.game.playerInfo[userId].royals.push(royal);
+  room.game.royals = room.game.royals.filter(royal => royal.id !== royalId);
 
   return room;
 };
