@@ -105,7 +105,7 @@ const repopulateBoard = (game: Game) => {
 };
 
 export const startGame = (room: Room) => {
-  const newGame: Game = {
+  const newGame = {
     ...room.game,
     started: true,
     currentTurn: {
@@ -144,17 +144,12 @@ export const startGame = (room: Room) => {
     privileges: 2,
   };
 
-  const notStartingPlayerId = room.connectedPlayersIds.find(
-    id => id !== newGame.currentTurn.currentPlayerTurn,
+  const otherPlayerInfo = getOtherPlayerInfo(
+    newGame.currentTurn.currentPlayerTurn,
+    room,
   );
 
-  if (!notStartingPlayerId) {
-    throw new AppError(
-      'Não foi possível encontrar o id do jogador que não está começando',
-    );
-  }
-
-  newGame.playerInfo[notStartingPlayerId].privileges = 1;
+  otherPlayerInfo.privileges = 1;
 
   repopulateBoard(newGame);
 
@@ -183,7 +178,7 @@ const validateBoardPlayCombination = (
 
   if (boardPlayCombination.some(([y, x]) => board[y][x] === 'Gold'))
     throw new AppError(
-      'Não é possível pegar uma gema dourada sem ser pela reserva de cartas',
+      'It is not possible to get a golden gem without reserving a card',
     );
 
   return true;
@@ -192,16 +187,19 @@ const validateBoardPlayCombination = (
 const getRoomByGameId = (gameId: UUID) => {
   const room = rooms.find(room => room.game.id === gameId);
   if (!room)
-    throw new AppError(`Sala com jogo de ID ${gameId} não foi encontrada`);
+    throw new AppError(`Room with the game ID ${gameId} was not found`);
   return room;
 };
 
 const assertPlayerCanPlay = (room: Room, userId: UUID) => {
   if (!room.connectedPlayersIds.includes(userId))
-    throw new AppError('Jogador não pertence a essa sala', 401);
+    throw new AppError('The player does not belong to this game', 401);
 
   if (room.game.currentTurn.currentPlayerTurn !== userId)
-    throw new AppError('Não é a vez do jogador tentando jogar', 401);
+    throw new AppError(
+      "It is not the turn of the player who's trying to play",
+      401,
+    );
 };
 
 export const getGemsFromBoard = (
@@ -213,10 +211,10 @@ export const getGemsFromBoard = (
   assertPlayerCanPlay(room, userId);
 
   if (!room.game.currentTurn.canMakeMainAction)
-    throw new AppError('Jogador não pode pegar mais gemas no seu turno', 400);
+    throw new AppError('The player cannot take any more gems in its turn', 400);
 
   if (!validateBoardPlayCombination(boardPlayCombination, room.game.board))
-    throw new AppError('Não é possível fazer tal jogada');
+    throw new AppError('It is not possible to do this play');
 
   if (
     // Testar se as três gemas são da mesma exata cor
@@ -244,8 +242,7 @@ export const getGemsFromBoard = (
 
   boardPlayCombination.forEach(([coordY, coordX]) => {
     const cellColor = room.game.board[coordY][coordX];
-    if (!cellColor)
-      throw new AppError('validateBoardPlayCombination incorreto', 500); // VAI QUE...
+    if (!cellColor) throw new AppError('Play validation is wrong!!', 500); // VAI QUE...
     room.game.board[coordY][coordX] = undefined;
     room.game.playerInfo[userId].gems[cellColor]++;
   });
@@ -262,7 +259,9 @@ const replaceCardInStore = (cardId: UUID, game: Game) => {
     ) ?? [];
 
   if (!cardLevel)
-    throw new AppError(`Não foi possível encontrar a carta ${cardId} na loja`);
+    throw new AppError(
+      `It was not possible to find card with id ${cardId} in the store`,
+    );
 
   const level = Number(cardLevel) as keyof Game['store'];
 
@@ -291,17 +290,14 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
   assertPlayerCanPlay(room, userId);
 
   if (!room.game.currentTurn.canMakeMainAction)
-    throw new AppError(
-      'Jogador não pode mais comprar cartas no seu turno',
-      400,
-    );
+    throw new AppError('The player cannot buy anymore cards in its turn', 400);
 
   const card = Object.values(room.game.store)
     .flat()
     .find(card => card.id === cardId);
 
   if (!card)
-    throw new AppError('Carta não existe ou não está disponível na loja');
+    throw new AppError('This card is not available in the store anymore');
 
   const userInfo = room.game.playerInfo[userId];
 
@@ -326,9 +322,10 @@ export const buyCard = (userId: UUID, cardId: UUID, gameId: UUID) => {
 
   if (goldenGemsRequired > userInfo.gems.Gold)
     throw new AppError(
-      `Jogador não possui gemas ${notEnoughGems
+      `The player doesn't have enough ${notEnoughGems
         .map(gem => gem.color)
-        .join('')} suficientes para comprar a carta`,
+        .join(', ')
+        .replace(/,([^,]*)$/, ' and$1')} gems to buy this card`,
     );
 
   [
@@ -356,22 +353,22 @@ export const usePrivillegeToBuyGem = (
 
   if (!room.game.currentTurn.secondayActions.canTradePrivilegeToGem) {
     throw new AppError(
-      'Jogador não pode mais executar essa ação secundária',
+      'The player cannot execute this secondary action anymore',
       401,
     );
   }
 
   if (room.game.playerInfo[userId].privileges === 0) {
-    throw new AppError('Jogador não tem mais privilégios para executar a ação');
+    throw new AppError('The player does not have any more privileges');
   }
 
   const board = room.game.board;
   if (!board[gemPosition[0]][gemPosition[1]])
-    throw new AppError('Não há gemas nessa posição do tabuleiro');
+    throw new AppError('There is not a gem in the requested position');
 
   if (board[gemPosition[0]][gemPosition[1]] === 'Gold')
     throw new AppError(
-      'Não é possível pegar uma gema dourada no tabuleiro usando um privilêgio',
+      'It is not possible to get a golden gem using a privilege',
     );
 
   // Adiciona uma gema para a cor escolhida
@@ -403,7 +400,7 @@ export const endCurrentTurn = (userId: UUID, gameId: UUID) => {
 
   if (room.game.currentTurn.canMakeMainAction) {
     throw new AppError(
-      'O jogador deve realizar sua ação principal antes de terminar o turno',
+      'The player must perform its primary action before ending the turn',
     );
   }
 
@@ -424,7 +421,7 @@ const getOtherPlayerInfo = (userId: UUID, room: Room) => {
   const otherPlayerId = room.connectedPlayersIds.find(id => id !== userId);
   if (!otherPlayerId)
     throw new AppError(
-      'Não foi possível encontrar o id do outro jogador envolvido na partida',
+      'It was not possible to find the other player involved in the game',
     );
   return room.game.playerInfo[otherPlayerId];
 };
@@ -447,18 +444,17 @@ export const reserveCard = (
   const card = Object.values(room.game.store)
     .flat()
     .find(card => card.id === cardId);
-  if (!card) throw new AppError('Carta requisitada não esta na loja');
+  if (!card) throw new AppError('Card not found in the store');
 
   if (
     room.game.board[goldenGemCoordinate[0]][goldenGemCoordinate[1]] !== 'Gold'
   )
     throw new AppError(
-      'Não é possível reservar a carta com uma gema quen não é dourada',
+      'It is not possible to reserve a card using a not golden gem',
     );
 
   const otherUserId = room.connectedPlayersIds.find(id => id !== userId);
-  if (!otherUserId)
-    throw new AppError('Não foi possível encontrar o outro jogador');
+  if (!otherUserId) throw new AppError('Could not find other player');
 
   // Se não há mais privilégios na mesa, deve-se pegar do outro jogador (no caso, quem está reservando irá ter que perder um privilégio)
   if (room.game.privileges) {
