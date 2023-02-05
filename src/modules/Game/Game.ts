@@ -32,7 +32,7 @@ export interface Card {
   sideEffect: SideEffect | undefined;
   points: number;
   crowns: number;
-  color: GemColors | 'Neutral';
+  color: GemColors;
   gemValue: number; // Há cartas que podem valer múltiplas fichas da certa cor
 }
 

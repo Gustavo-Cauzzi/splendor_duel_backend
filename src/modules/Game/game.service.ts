@@ -6,7 +6,7 @@ import {
 } from '@config/splendor_duel/cards';
 import { totalGemCountConfig } from '@config/splendor_duel/gems';
 import Room from '@modules/Rooms/Room';
-import { rooms } from '@modules/Rooms/rooms.service';
+import { getAllOpenRooms, rooms } from '@modules/Rooms/rooms.service';
 import AppError from '@shared/exceptions/AppException';
 import { v4 } from 'uuid';
 import {
@@ -16,6 +16,7 @@ import {
   GemColors,
   GemCoordinate,
   PlayerInfo,
+  SideEffect,
   StoreCardLevel,
   UUID,
 } from './Game';
@@ -269,7 +270,7 @@ export const getGemsFromBoard = (
     boardPlayCombination.filter(([y, x]) => room.game.board[y][x] === 'Pink')
       .length === 2
   ) {
-    const otherPlayerInfo = getOtherPlayerInfo(userId, room);
+    const { playerInfo: otherPlayerInfo } = getOtherPlayerInfo(userId, room);
     if (otherPlayerInfo.privileges !== 3) {
       otherPlayerInfo.privileges++;
       if (room.game.privileges === 0) {
@@ -325,11 +326,24 @@ const replaceCardInStore = (cardId: UUID, game: Game) => {
   );
 };
 
+type NormalGemColors = Omit<GemColors, 'Gold'>;
+interface SideEffectData {
+  AnyValue: {
+    gemColor: NormalGemColors;
+  };
+  StealGemOtherPlayer: {
+    gemColor: NormalGemColors;
+  };
+  GetGemFromBoard: {
+    gemCoordinate: GemCoordinate;
+  };
+}
+
 export const buyCard = (
   userId: UUID,
   cardId: UUID,
   gameId: UUID,
-  targetColor?: GemColors,
+  sideEffectInfo?: SideEffectData,
 ) => {
   const room = getRoomByGameId(gameId);
   assertPlayerCanPlay(room, userId);
@@ -344,11 +358,12 @@ export const buyCard = (
   if (!card)
     throw new AppError('This card is not available in the store anymore');
 
-  if (card.color === 'Neutral' && !targetColor)
+  if (
+    card.sideEffect &&
+    card.sideEffect === 'AnyValue' &&
+    !sideEffectInfo?.AnyValue
+  )
     throw new AppError('A color must be chosen for the neutral color card');
-
-  if (targetColor === 'Gold' || targetColor === 'Pink')
-    throw new AppError(`${targetColor} is not a valid color for a card`);
 
   const userInfo = room.game.playerInfo[userId];
 
@@ -381,17 +396,95 @@ export const buyCard = (
     { color: 'Gold' as GemColors, price: goldenGemsRequired },
   ].forEach(({ color, price }) => (userInfo.gems[color] = Math.max(price, 0)));
 
-  userInfo.cards[card.color === 'Neutral' ? targetColor! : card.color].push(
-    card,
-  );
+  // Não há nada mais que possa ser feito
+  invalidateAllActionsFromCurrentTurn(room.game);
+
+  makeSideEffectAction(card, userInfo, userId, room, sideEffectInfo);
+
+  // Se a cor for neutra
+  if (!(card.sideEffect && card.sideEffect === 'AnyValue'))
+    userInfo.cards[card.color].push(card);
 
   room.game.alreadyPlayedCardsId.push(card.id);
   replaceCardInStore(cardId, room.game);
 
-  // Não há nada mais que possa ser feito
-  invalidateAllActionsFromCurrentTurn(room.game);
-
   return room;
+};
+
+const makeSideEffectAction = (
+  card: Card,
+  userInfo: PlayerInfo,
+  userId: UUID,
+  room: Room,
+  sideEffectInfo?: SideEffectData,
+) => {
+  // Checar sideEffect
+  if (!card.sideEffect) return;
+
+  assertSideEffectDataHasRequiredData(card.sideEffect, sideEffectInfo);
+  const { id: otherPlayerId, playerInfo: otherPlayerInfo } = getOtherPlayerInfo(
+    userId,
+    room,
+  );
+
+  if (card.sideEffect === 'AnyValue') {
+    userInfo.gems[sideEffectInfo!.AnyValue.gemColor as GemColors]++;
+  } else if (card.sideEffect === 'GetAPrivilegde') {
+    getPrivilegdeIfPossible(room.game, userId, otherPlayerId);
+  } else if (card.sideEffect === 'GetGemFromBoard') {
+    const gemCoordinate = sideEffectInfo!.GetGemFromBoard.gemCoordinate;
+    if (room.game.board[gemCoordinate[0]][gemCoordinate[1]] === 'Gold')
+      throw new AppError('Cannot pickup a gold gem using card sideEffect');
+
+    const gemColor = room.game.board[gemCoordinate[0]][gemCoordinate[1]];
+    if (!gemColor)
+      throw new AppError('There is not a gem in the specified board position');
+
+    room.game.board[gemCoordinate[0]][gemCoordinate[1]] = undefined;
+    userInfo.gems[gemColor]++;
+  } else if (card.sideEffect === 'PlayAgain') {
+    room.game.currentTurn.canMakeMainAction = true;
+  } else if (card.sideEffect === 'StealGemOtherPlayer') {
+    const gemToSteal = sideEffectInfo!.StealGemOtherPlayer
+      .gemColor as GemColors;
+    if (otherPlayerInfo.gems[gemToSteal] === 0)
+      throw new AppError(
+        `Other player does not have anymore ${gemToSteal} gems to steal`,
+      );
+
+    otherPlayerInfo.gems[gemToSteal]--;
+    userInfo.gems[gemToSteal]++;
+  }
+};
+
+const sideEffectValidation = (sideEffectInfo: SideEffectData) =>
+  ({
+    AnyValue: !!(sideEffectInfo.AnyValue && sideEffectInfo.AnyValue.gemColor),
+    GetGemFromBoard: !!(
+      sideEffectInfo.GetGemFromBoard &&
+      sideEffectInfo.GetGemFromBoard.gemCoordinate
+    ),
+    StealGemOtherPlayer: !!(
+      sideEffectInfo.StealGemOtherPlayer &&
+      sideEffectInfo.StealGemOtherPlayer.gemColor
+    ),
+  } as Record<SideEffect, boolean>);
+
+const assertSideEffectDataHasRequiredData = (
+  cardSideEffect: SideEffect,
+  sideEffectInfo?: SideEffectData,
+) => {
+  if (!sideEffectInfo) {
+    throw new AppError(
+      `"sideEffectData" object required with data about the ${cardSideEffect} present in the card`,
+      400,
+    );
+  }
+
+  const validationObj = sideEffectValidation(sideEffectInfo);
+  if (cardSideEffect in validationObj && !validationObj[cardSideEffect]) {
+    throw new AppError(`Data about the ${cardSideEffect} is missing`);
+  }
 };
 
 export const usePrivillegeToBuyGem = (
@@ -474,7 +567,7 @@ const getOtherPlayerInfo = (userId: UUID, room: Room) => {
     throw new AppError(
       'It was not possible to find the other player involved in the game',
     );
-  return room.game.playerInfo[otherPlayerId];
+  return { playerInfo: room.game.playerInfo[otherPlayerId], id: otherPlayerId };
 };
 
 export const reserveCard = (
@@ -507,14 +600,7 @@ export const reserveCard = (
   const otherUserId = room.connectedPlayersIds.find(id => id !== userId);
   if (!otherUserId) throw new AppError('Could not find other player');
 
-  // Se não há mais privilégios na mesa, deve-se pegar do outro jogador (no caso, quem está reservando irá ter que perder um privilégio)
-  if (room.game.privileges) {
-    room.game.privileges--;
-  } else {
-    room.game.playerInfo[userId].privileges--;
-  }
-
-  room.game.playerInfo[otherUserId].privileges++;
+  getPrivilegdeIfPossible(room.game, otherUserId, userId);
 
   room.game.playerInfo[userId].reservedCards.push(card);
   room.game.alreadyPlayedCardsId.push(card.id);
@@ -522,6 +608,23 @@ export const reserveCard = (
   invalidateAllActionsFromCurrentTurn(room.game);
 
   return room;
+};
+
+const getPrivilegdeIfPossible = (
+  game: Game,
+  recivingUser: UUID,
+  otherUser: UUID,
+) => {
+  if (game.privileges || game.playerInfo[otherUser].privileges) {
+    // Se não há mais privilégios na mesa, deve-se pegar do outro jogador (no caso, quem está reservando irá ter que perder um privilégio)
+    if (game.privileges) {
+      game.privileges--;
+    } else {
+      game.playerInfo[otherUser].privileges--;
+    }
+
+    game.playerInfo[recivingUser].privileges++;
+  }
 };
 
 export const getRoyal = (userId: string, gameId: UUID, royalId: string) => {
