@@ -408,7 +408,23 @@ export const buyCard = (
   room.game.alreadyPlayedCardsId.push(card.id);
   replaceCardInStore(cardId, room.game);
 
+  if (checkIfSomebodyWon(userInfo)) {
+    room.game.winner = userId;
+  }
+
   return room;
+};
+
+const checkIfSomebodyWon = (playerInfo: PlayerInfo) => {
+  const winConditions = getWinConditionsStatus(playerInfo);
+
+  return (
+    winConditions.crowns >= 10 ||
+    winConditions.totalPoints >= 20 ||
+    Object.values(winConditions.points).find(
+      pointsOfColor => pointsOfColor >= 10,
+    )
+  );
 };
 
 const makeSideEffectAction = (
