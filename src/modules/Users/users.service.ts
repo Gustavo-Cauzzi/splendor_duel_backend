@@ -1,12 +1,13 @@
+import authConfig from '@config/auth';
 import AppError from '@shared/exceptions/AppException';
 import { database } from '@shared/services/firebase';
+import { addDays } from 'date-fns';
 import { get, ref, set } from 'firebase/database';
 import { sha256 } from 'js-sha256';
-import { v4 } from 'uuid';
 import jwt from 'jsonwebtoken';
-import { User } from './User';
 import { Socket } from 'socket.io';
-import authConfig from '@config/auth';
+import { v4 } from 'uuid';
+import { User } from './User';
 
 type GuaranteedExistence<T> = T extends undefined | null ? never : T;
 export const usersSockets: Record<GuaranteedExistence<User['id']>, Socket> = {};
@@ -53,6 +54,13 @@ export const login = async (username: string, password: string) => {
   }
 
   throw new AppError('Usuário não existe ou senha incorreta', 401);
+};
+
+export const fakeLogin = async (username: string, id: string) => {
+  return jwt.sign(
+    { username, id, isFakeUser: true, expirationDate: addDays(new Date(), 1) },
+    authConfig.jwt.secret,
+  );
 };
 
 export const assignSocketToUser = (socket: Socket, userId: string) => {

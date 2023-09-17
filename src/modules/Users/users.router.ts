@@ -3,6 +3,7 @@ import express from 'express';
 import {
   assignSocketToUser,
   createUser,
+  fakeLogin,
   login,
   usersSockets,
 } from './users.service';
@@ -24,7 +25,15 @@ UsersRouter.post('/login', async (req, res) => {
   return res.status(200).json({ token });
 });
 
-UsersRouter.get('/debug/sockets', async (req, res) => {
+UsersRouter.post('/fakeLogin', async (req, res) => {
+  const { username, id } = req.body;
+
+  const token = await fakeLogin(username, id);
+
+  return res.status(200).json({ token });
+});
+
+UsersRouter.get('/debug/sockets', async (_req, res) => {
   return res.status(200).json(Object.keys(usersSockets));
 });
 

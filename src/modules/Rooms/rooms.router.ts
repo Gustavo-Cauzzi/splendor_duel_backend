@@ -16,6 +16,7 @@ RoomsRouter.get('/', (req, res) => {
 
 RoomsRouter.post('/', (req, res) => {
   const { name } = req.body;
+  console.log('req.user: ', req.user);
   const socket = usersSockets[req.user.id];
 
   const newRoom = createRoom(name, req.user.id);
